@@ -11,7 +11,7 @@
 				<name>silnik</name>
 				<packageName></packageName>
 				<script>-- ============================================================
--- Pasek kalendarza dla Arkadii (Ishtar / Imperium) v1.2
+-- Pasek kalendarza dla Arkadii (Ishtar / Imperium) v1.3
 -- Silnik kalendarza: port 1:1 z pluginow Dargoth
 -- (ishtar_cal 1.8.11 / imperium_cal 1.8.12, autor: Isithunzi000)
 -- Mechaniki "zycia" zegara: port z clock.ts klienta Delwing/Dargoth
@@ -42,18 +42,19 @@ pk.SEKUND_RL_NA_GODZINE_GRY = 120
 pk.MINUT_W_DOCIE = 24 * 60
 
 -- ---------- ISHTAR (rachuba czasu Starszego Ludu) ----------
--- Rok zaczyna sie od Yule; 8 por roku po 45 dni = 360 dni.
-pk.ISHTAR_PORY = {"Yule", "Imbaelk", "Birke", "Blathe", "Feainn", "Lammas", "Velen", "Saovine"}
+-- Rok zaczyna sie od 1 Saovine; 8 por roku po 45 dni = 360 dni.
+pk.ISHTAR_PORY = {"Saovine", "Yule", "Imbaelk", "Birke", "Blathe", "Feainn", "Lammas", "Velen"}
 pk.ISHTAR_DNI_W_PORZE = 45
 pk.ISHTAR_DNI_W_ROKU = 360
-pk.ISHTAR_WSCHOD = {8, 7, 6, 5, 4, 5, 7, 6}
-pk.ISHTAR_ZACHOD = {16, 18, 19, 21, 20, 20, 18, 17}
+pk.ISHTAR_WSCHOD = {6, 8, 7, 6, 5, 4, 5, 7}
+pk.ISHTAR_ZACHOD = {17, 16, 18, 19, 21, 20, 20, 18}
 
 -- Swieta o stalym dniu roku (linie "czas" bez frazy "dzien pory ..."),
--- np. "noc Midaete", "Belleteyn - Dzien Rozkwitu".
+-- np. "noc Midaete", "Belleteyn - Dzien Rozkwitu". Kazde wypada w ostatni
+-- dzien poprzedzajacej pory roku (numeracja od 1 Saovine).
 pk.ISHTAR_SWIETA = {
-  midinvaerne = 360, birke = 90, midaete = 180, velen = 270,
-  imbaelk = 45, belleteyn = 135, lammas = 225, saovine = 315,
+  midinvaerne = 45, birke = 135, midaete = 225, velen = 315,
+  imbaelk = 90, belleteyn = 180, lammas = 270, saovine = 360,
 }
 
 -- ---------- IMPERIUM (Kalendarz Imperialny) ----------
@@ -526,11 +527,11 @@ function pk.render()
 
   local l2
   if domena == "ishtar" then
-    local nazwa, dzien, nr = pk.ishtar_pora_dnia(doy)
-    l2 = string.format("DZIEŃ %d | %s | pora %d/8 | DZIEŃ ROKU %d/360", dzien, nazwa, nr, doy)
+    local nazwa, dzien = pk.ishtar_pora_dnia(doy)
+    l2 = string.format("DZIEŃ %d | %s | DZIEŃ ROKU %d/360", dzien, nazwa, doy)
   elseif domena == "imperium" then
-    local nazwa, dzien, nr = pk.imp_miesiac_dnia(doy)
-    l2 = string.format("DZIEŃ %d | %s | miesiąc %d/17 | DZIEŃ ROKU %d/400", dzien, nazwa, nr, doy)
+    local nazwa, dzien = pk.imp_miesiac_dnia(doy)
+    l2 = string.format("DZIEŃ %d | %s | DZIEŃ ROKU %d/400", dzien, nazwa, doy)
   else
     l2 = "wpisz czas albo poczekaj na synchronizacje"
   end
