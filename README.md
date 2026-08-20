@@ -26,16 +26,27 @@ Plik [`pasek_kalendarz_arkadia.xml`](pasek_kalendarz_arkadia.xml) w korzeniu rep
 - pierwsza synchronizacja: pakiet sam wysyła `czas` po zalogowaniu i parsuje odpowiedź
 - zegar dokręca się przy każdym wschodzie i zachodzie słońca (z GMCP) — bez dodatkowych zapytań do serwera
 - domena (Ishtar / Imperium) rozpoznawana automatycznie z GMCP
-- kotwice czasu zapisywane na dysku — po restarcie klienta zegar chodzi dalej
+- kotwice czasu i ustawienia wyglądu zapisywane na dysku — po restarcie klienta wszystko chodzi dalej
 - gdy odpowiedź `czas` jest niejednoznaczna (np. noc Geheimnisnacht), zegar nie zgaduje — zostaje ekstrapolacja z ostatniej pewnej kotwicy
 
 ## Komendy
+
+**Czas:**
 
 - `pasek` — wymusza synchronizację (wysyła `czas`)
 - `pasek ustaw imperium 8 273` — ręczne ustawienie: domena, godzina 0–23, opcjonalnie dzień roku
 - `pasek reset` — czyści zapisane kotwice i synchronizuje od nowa
 
-Kliknięcie paska też wysyła `czas`.
+**Wygląd i pozycja** (od v1.4 — wszystko zapisuje się na dysku i działa po restarcie):
+
+- `pasek pozycja X Y` — przesuwa pasek (pigułka CIEMNO sama podąża za paskiem)
+- `pasek tlo R G B [A]` — kolor tła paska (opcjonalnie przezroczystość 0–255)
+- `pasek tekst R G B` — kolor tekstu paska
+- `pasek ciemno R G B [A]` — kolor pigułki CIEMNO
+- `pasek domyslne` — powrót do ustawień fabrycznych (pozycja + kolory)
+- `pasek pomoc` — ściągawka komend w oknie gry
+
+Kolory podaje się jako trzy liczby 0–255 (RGB), np. `pasek tlo 40 0 60 180`. Kliknięcie paska też wysyła `czas`.
 
 ---
 
@@ -45,5 +56,5 @@ Kliknięcie paska też wysyła `czas`.
 - kalendarz Ishtar: 360 dni (8 pór roku po 45 dni); Kalendarz Imperialny: 400 dni (17 pozycji ze świętami interkalarnymi)
 - silnik kalendarza przeniesiony 1:1 z pluginów Dargoth ([ishtar_cal / imperium_cal](https://github.com/Isithunzi000/arkadia-dargoth-plugins))
 - mechaniki „życia” zegara (kotwice, rekalibracja na wschodzie/zachodzie, model precyzji) — wg rozwiązania z repo [Delwing/arkadia-web-client-extension](https://github.com/Delwing/arkadia-web-client-extension) (`src/client/scripts/clock.ts`)
-- pozycję i rozmiar paska zmienisz w skrypcie `silnik` → tabela `pk.cfg` (x, y, width, height); pigułka CIEMNO sama podąża za paskiem
+- pozycję i kolory paska ustawisz komendami (`pasek pozycja`, `pasek tlo` itd. — patrz wyżej); zapisują się na dysku razem z kotwicami czasu
 

@@ -11,7 +11,7 @@
 				<name>silnik</name>
 				<packageName></packageName>
 				<script>-- ============================================================
--- Pasek kalendarza dla Arkadii (Ishtar / Imperium) v1.3
+-- Pasek kalendarza dla Arkadii (Ishtar / Imperium) v1.4
 -- Silnik kalendarza: port 1:1 z pluginow Dargoth
 -- (ishtar_cal 1.8.11 / imperium_cal 1.8.12, autor: Isithunzi000)
 -- Mechaniki "zycia" zegara: port z clock.ts klienta Delwing/Dargoth
@@ -28,11 +28,21 @@ pk.cfg = pk.cfg or {
   width = 605, height = 58,       -- 605 px: najdluzszy tekst (59 zn. mono ~569 px) + marginesy
   ciemno_width = 115, ciemno_height = 24, ciemno_odstep = 4,  -- pigulka CIEMNO pod paskiem
   fontSize = 12,
-  kolor_tla = {25, 20, 30, 210},
+  kolor_tla = {25, 20, 30, 210},     -- tlo paska (RGBA)
+  kolor_tekstu = {255, 255, 255},    -- tekst paska (RGB)
+  kolor_ciemno = {60, 20, 20, 230},  -- tlo pigulki CIEMNO (RGBA)
   auto_czas_po_zalogowaniu = true,   -- wysyla "czas" po wejsciu do gry (pierwsza synchronizacja)
   gag_auto_czas = true,              -- ukrywa automatyczne odpowiedzi na "czas"
   min_odstep_zapytan = 60,           -- min. sekundy RL miedzy auto-zapytaniami "czas"
   pokazuj_precyzje = true,           -- "HH:MM ±N" gdy zegar jest czesciowo pewny (1-59)
+}
+
+-- wartosci fabryczne (dla komendy "pasek domyslne")
+pk.FABRYCZNE = {
+  x = 150, y = 20,
+  kolor_tla = {25, 20, 30, 210},
+  kolor_tekstu = {255, 255, 255},
+  kolor_ciemno = {60, 20, 20, 230},
 }
 
 -- ---------- STALE CZASU ----------
@@ -282,7 +292,11 @@ function pk.sciezka_kotwicy()
 end
 
 function pk.zapisz_kotwice()
-  table.save(pk.sciezka_kotwicy(), { kotwice = pk.kotwice })
+  table.save(pk.sciezka_kotwicy(), { kotwice = pk.kotwice, cfg = {
+    x = pk.cfg.x, y = pk.cfg.y,
+    kolor_tla = pk.cfg.kolor_tla, kolor_tekstu = pk.cfg.kolor_tekstu,
+    kolor_ciemno = pk.cfg.kolor_ciemno,
+  } })
 end
 
 function pk.wczytaj_kotwice()
@@ -298,6 +312,12 @@ function pk.wczytaj_kotwice()
     -- migracja ze starego formatu (v1.0): pojedyncza kotwica
     local k = wynik.kotwica
     if k.domena then pk.kotwice[k.domena] = k end
+  end
+  -- zapisana konfiguracja wygladu/pozycji (komendy "pasek ...")
+  if type(wynik.cfg) == "table" then
+    for _, klucz in ipairs({"x", "y", "kolor_tla", "kolor_tekstu", "kolor_ciemno"}) do
+      if wynik.cfg[klucz] ~= nil then pk.cfg[klucz] = wynik.cfg[klucz] end
+    end
   end
 end
 
@@ -463,6 +483,98 @@ function pk.ustaw_recznie(domena_txt, godzina_txt, doy_txt)
     domena == "imperium" and "Imperium" or "Ishtar", godzina, doy))
 end
 
+-- ---------- KOMENDY WYGLADU/POZYCJI (zapisywane na dysk) ----------
+local function tohex(k) return string.format("#%02x%02x%02x", k[1], k[2], k[3]) end
+
+-- Aplikuje cfg na istniejace labele (pozycja + kolory + odswiezenie)
+function pk.zastosuj_wyglad()
+  if pk.label then
+    pk.label:setColor(unpack(pk.cfg.kolor_tla))
+    pk.label.fgColor = tohex(pk.cfg.kolor_tekstu)
+    setFgColor(pk.label.name, unpack(pk.cfg.kolor_tekstu))
+    pk.label:move(pk.cfg.x, pk.cfg.y)
+  end
+  if pk.ciemno_label then
+    pk.ciemno_label:setColor(unpack(pk.cfg.kolor_ciemno))
+    pk.ciemno_label:move(pk.cfg.x + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
+                         pk.cfg.y + pk.cfg.height + pk.cfg.ciemno_odstep)
+  end
+  pk.render()
+end
+
+local function parse_rgb(rs, gs, bs, as, domyslne_a)
+  local r, g, b, a = tonumber(rs), tonumber(gs), tonumber(bs), tonumber(as)
+  if not (r and g and b) then return nil end
+  a = a or domyslne_a
+  for _, v in ipairs({r, g, b, a}) do
+    if v &lt; 0 or v &gt; 255 then return nil end
+  end
+  return {r, g, b, a}
+end
+
+function pk.komenda_pozycja(xs, ys)
+  local x, y = tonumber(xs), tonumber(ys)
+  if not x or not y then echo("\n(pasek) Uzycie: pasek pozycja X Y\n") return end
+  pk.cfg.x, pk.cfg.y = math.floor(x), math.floor(y)
+  pk.zapisz_kotwice()
+  pk.zastosuj_wyglad()
+  echo(string.format("\n(pasek) Pozycja ustawiona: %d, %d.\n", pk.cfg.x, pk.cfg.y))
+end
+
+function pk.komenda_tlo(rs, gs, bs, as)
+  local k = parse_rgb(rs, gs, bs, as, 210)
+  if not k then echo("\n(pasek) Uzycie: pasek tlo R G B [A], wartosci 0-255\n") return end
+  pk.cfg.kolor_tla = k
+  pk.zapisz_kotwice()
+  pk.zastosuj_wyglad()
+  echo(string.format("\n(pasek) Tlo paska: %d %d %d %d.\n", k[1], k[2], k[3], k[4]))
+end
+
+function pk.komenda_tekst(rs, gs, bs)
+  local k = parse_rgb(rs, gs, bs, nil, 255)
+  if not k then echo("\n(pasek) Uzycie: pasek tekst R G B, wartosci 0-255\n") return end
+  pk.cfg.kolor_tekstu = {k[1], k[2], k[3]}
+  pk.zapisz_kotwice()
+  pk.zastosuj_wyglad()
+  echo(string.format("\n(pasek) Kolor tekstu: %d %d %d.\n", k[1], k[2], k[3]))
+end
+
+function pk.komenda_ciemno(rs, gs, bs, as)
+  local k = parse_rgb(rs, gs, bs, as, 230)
+  if not k then echo("\n(pasek) Uzycie: pasek ciemno R G B [A], wartosci 0-255\n") return end
+  pk.cfg.kolor_ciemno = k
+  pk.zapisz_kotwice()
+  pk.zastosuj_wyglad()
+  echo(string.format("\n(pasek) Tlo CIEMNO: %d %d %d %d.\n", k[1], k[2], k[3], k[4]))
+end
+
+function pk.komenda_domyslne()
+  pk.cfg.x = pk.FABRYCZNE.x
+  pk.cfg.y = pk.FABRYCZNE.y
+  pk.cfg.kolor_tla = {unpack(pk.FABRYCZNE.kolor_tla)}
+  pk.cfg.kolor_tekstu = {unpack(pk.FABRYCZNE.kolor_tekstu)}
+  pk.cfg.kolor_ciemno = {unpack(pk.FABRYCZNE.kolor_ciemno)}
+  pk.zapisz_kotwice()
+  pk.zastosuj_wyglad()
+  echo("\n(pasek) Przywrocono ustawienia fabryczne.\n")
+end
+
+function pk.komenda_pomoc()
+  echo([[
+(pasek) Komendy:
+  pasek                        - synchronizacja zegara (wysyla czas)
+  pasek pozycja X Y            - przesuniecie paska (pigulka CIEMNO podaza za paskiem)
+  pasek tlo R G B [A]          - tlo paska, np.: pasek tlo 0 0 0 180
+  pasek tekst R G B            - kolor tekstu paska, np.: pasek tekst 255 255 0
+  pasek ciemno R G B [A]       - tlo pigulki CIEMNO, np.: pasek ciemno 60 20 20 230
+  pasek domyslne               - powrot do ustawien fabrycznych
+  pasek ustaw imperium 8 273   - reczne ustawienie zegara (domena, godzina 0-23, dzien roku)
+  pasek reset                  - czysci zapisane kotwice czasu
+  Kolory: R G B A w zakresie 0-255 (A = przezroczystosc, opcjonalne).
+  Ustawienia zapisuja sie na dysku i przechodza przez restart klienta.
+]])
+end
+
 -- ---------- GMCP ----------
 function pk.gmcp_update()
   -- domena z GMCP (jak w kliencie Dargoth: gmcp.room.info.map.domain)
@@ -555,6 +667,10 @@ end</script>
 				<packageName></packageName>
 				<script>-- tworzy pasek (uruchamiane przy ladowaniu paczki/profilu)
 local pk = pasek_kalendarz
+
+-- najpierw zapisana konfiguracja (kotwice + wyglad z komend "pasek ...")
+pk.wczytaj_kotwice()
+
 if pk.label then pk.label:hide() end
 pk.label = Geyser.Label:new({
   name = "pasek_kalendarz_label",
@@ -577,12 +693,12 @@ pk.ciemno_label = Geyser.Label:new({
   fgColor = "white",
   message = "&lt;center&gt;◆ CIEMNO",
 })
-pk.ciemno_label:setColor(60, 20, 20, 230)
+pk.ciemno_label:setColor(unpack(pk.cfg.kolor_ciemno))
 pk.ciemno_label:setFontSize(math.max(8, pk.cfg.fontSize - 2))
 pk.ciemno_label:hide()
 
-pk.wczytaj_kotwice()
-pk.render()</script>
+-- zastosuj zapisany wyglad (pozycja/kolory tekstu) i odswiez
+pk.zastosuj_wyglad()</script>
 				<eventHandlerList>
 				</eventHandlerList>
 			</Script>
@@ -684,6 +800,48 @@ echo("\n(pasek) Kotwice czasu wyczyszczone. Wpisz czas, zeby zsynchronizowac.\n"
 				<command></command>
 				<packageName></packageName>
 				<regex>^pasek ustaw (imperium|ishtar) (\d+)(?: (\d+))?$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_pomoc</name>
+				<script>pasek_kalendarz.komenda_pomoc()</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^pasek (pomoc|help)$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_pozycja</name>
+				<script>pasek_kalendarz.komenda_pozycja(matches[2], matches[3])</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^pasek pozycja (\d+) (\d+)$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_tlo</name>
+				<script>pasek_kalendarz.komenda_tlo(matches[2], matches[3], matches[4], matches[5])</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^pasek tlo (\d+) (\d+) (\d+)(?: (\d+))?$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_tekst</name>
+				<script>pasek_kalendarz.komenda_tekst(matches[2], matches[3], matches[4])</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^pasek tekst (\d+) (\d+) (\d+)$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_ciemno</name>
+				<script>pasek_kalendarz.komenda_ciemno(matches[2], matches[3], matches[4], matches[5])</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^pasek ciemno (\d+) (\d+) (\d+)(?: (\d+))?$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_domyslne</name>
+				<script>pasek_kalendarz.komenda_domyslne()</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^pasek domyslne$</regex>
 			</Alias>
 		</AliasGroup>
 	</AliasPackage>
