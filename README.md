@@ -42,7 +42,7 @@ Kliknięcie paska też wysyła `czas`.
 - przelicznik czasu: 2 sekundy RL = 1 minuta IG (doba gry = 48 minut RL)
 - kalendarz Ishtar: 360 dni (8 pór roku po 45 dni); Kalendarz Imperialny: 400 dni (17 pozycji ze świętami interkalarnymi)
 - silnik kalendarza przeniesiony 1:1 z pluginów Dargoth ([ishtar_cal / imperium_cal](https://github.com/Isithunzi000/arkadia-dargoth-plugins))
-- mechaniki „życia” zegara (kotwice, rekalibracja na wschodzie/zachodzie, model precyzji) — wg rozwiązania z klienta arkadia-web
+- mechaniki „życia” zegara (kotwice, rekalibracja na wschodzie/zachodzie, model precyzji) — wg rozwiązania z repo [Delwing/arkadia-web-client-extension](https://github.com/Delwing/arkadia-web-client-extension) (`src/client/scripts/clock.ts`)
 - pozycję i rozmiar paska zmienisz w skrypcie `silnik` → tabela `pk.cfg` (x, y, width, height); pigułka CIEMNO sama podąża za paskiem
 
 ---
