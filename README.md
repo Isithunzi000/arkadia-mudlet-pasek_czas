@@ -47,6 +47,3 @@ Kliknięcie paska też wysyła `czas`.
 - mechaniki „życia” zegara (kotwice, rekalibracja na wschodzie/zachodzie, model precyzji) — wg rozwiązania z repo [Delwing/arkadia-web-client-extension](https://github.com/Delwing/arkadia-web-client-extension) (`src/client/scripts/clock.ts`)
 - pozycję i rozmiar paska zmienisz w skrypcie `silnik` → tabela `pk.cfg` (x, y, width, height); pigułka CIEMNO sama podąża za paskiem
 
----
-
-*Pakiet działa z Mudletem (desktop). Przetestowany również w runtime Lua mudix.*
