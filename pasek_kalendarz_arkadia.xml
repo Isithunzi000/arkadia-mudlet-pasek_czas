@@ -170,8 +170,9 @@ function pk.parse_hour(line)
     if seg:find(w, 1, true) then daytime = w break end
   end
   local hours = value
-  if daytime == "poludniu" or daytime == "poludniem" or daytime == "poludnie"
-     or daytime == "wieczorem" or (daytime == "nocy" and value &gt;= 6) then
+  -- PM tylko dla "poludniu"/"wieczorem"/"nocy od 6" (paritet z ishtar_cal):
+  -- "poludnie"/"poludniem" po slowie godziny NIE dodaja 12 (inaczej "poludnie poludniem" dawalo 0).
+  if daytime == "poludniu" or daytime == "wieczorem" or (daytime == "nocy" and value &gt;= 6) then
     hours = hours + 12
   end
   if hours &gt; 23 then hours = 0 end
