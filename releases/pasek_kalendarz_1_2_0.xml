@@ -1,0 +1,689 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>pasek_kalendarz</name>
+			<packageName>pasek_kalendarz</packageName>
+			<script></script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>silnik</name>
+				<packageName></packageName>
+				<script>-- ============================================================
+-- Pasek kalendarza dla Arkadii (Ishtar / Imperium) v1.2
+-- Silnik kalendarza: port 1:1 z pluginow Dargoth
+-- (ishtar_cal 1.8.11 / imperium_cal 1.8.12, autor: Isithunzi000)
+-- Mechaniki "zycia" zegara: port z clock.ts klienta Delwing/Dargoth
+-- (kotwice per domena, domena z GMCP, rekalibracja na wschod/zachod,
+--  model precyzji, reczne ustawianie czasu)
+-- ============================================================
+
+pasek_kalendarz = pasek_kalendarz or {}
+local pk = pasek_kalendarz
+
+-- ---------- KONFIGURACJA ----------
+pk.cfg = pk.cfg or {
+  x = 150, y = 20,
+  width = 605, height = 58,       -- 605 px: najdluzszy tekst (59 zn. mono ~569 px) + marginesy
+  ciemno_width = 115, ciemno_height = 24, ciemno_odstep = 4,  -- pigulka CIEMNO pod paskiem
+  fontSize = 12,
+  kolor_tla = {25, 20, 30, 210},
+  auto_czas_po_zalogowaniu = true,   -- wysyla "czas" po wejsciu do gry (pierwsza synchronizacja)
+  gag_auto_czas = true,              -- ukrywa automatyczne odpowiedzi na "czas"
+  min_odstep_zapytan = 60,           -- min. sekundy RL miedzy auto-zapytaniami "czas"
+  pokazuj_precyzje = true,           -- "HH:MM ±N" gdy zegar jest czesciowo pewny (1-59)
+}
+
+-- ---------- STALE CZASU ----------
+-- 1 minuta gry = 2 s realne (1 h gry = 120 s RL, doba gry = 48 min RL)
+pk.SEKUND_RL_NA_MINUTE_GRY = 2
+pk.SEKUND_RL_NA_GODZINE_GRY = 120
+pk.MINUT_W_DOCIE = 24 * 60
+
+-- ---------- ISHTAR (rachuba czasu Starszego Ludu) ----------
+-- Rok zaczyna sie od Yule; 8 por roku po 45 dni = 360 dni.
+pk.ISHTAR_PORY = {"Yule", "Imbaelk", "Birke", "Blathe", "Feainn", "Lammas", "Velen", "Saovine"}
+pk.ISHTAR_DNI_W_PORZE = 45
+pk.ISHTAR_DNI_W_ROKU = 360
+pk.ISHTAR_WSCHOD = {8, 7, 6, 5, 4, 5, 7, 6}
+pk.ISHTAR_ZACHOD = {16, 18, 19, 21, 20, 20, 18, 17}
+
+-- Swieta o stalym dniu roku (linie "czas" bez frazy "dzien pory ..."),
+-- np. "noc Midaete", "Belleteyn - Dzien Rozkwitu".
+pk.ISHTAR_SWIETA = {
+  midinvaerne = 360, birke = 90, midaete = 180, velen = 270,
+  imbaelk = 45, belleteyn = 135, lammas = 225, saovine = 315,
+}
+
+-- ---------- IMPERIUM (Kalendarz Imperialny) ----------
+-- 17 pozycji: 12 miesiecy (32/33 dni) + 5 swiat interkalarnych (1 dzien) = 400 dni.
+-- {nazwa, dni, prefix (dni przed), wschod, zachod}
+pk.IMP_MIESIACE = {
+  {"Hexenstag",   1,   0, 8, 17},
+  {"Nachexen",   32,   1, 8, 17},
+  {"Jahrdrung",  33,  33, 7, 18},
+  {"Mitterfruhl", 1,  66, 7, 18},
+  {"Pflugzeit",  33,  67, 6, 19},
+  {"Sigmarzeit", 33, 100, 5, 20},
+  {"Sommerzeit", 33, 133, 5, 21},
+  {"Sonnstill",   1, 166, 5, 22},
+  {"Vorgeheim",  33, 167, 4, 22},
+  {"Nachgeheim", 33, 200, 5, 21},
+  {"Erntezeit",  33, 233, 5, 20},
+  {"Mittherbst",  1, 266, 5, 20},
+  {"Brauzeit",   33, 267, 6, 19},
+  {"Kaldezeit",  33, 300, 6, 18},
+  {"Ulriczeit",  33, 333, 7, 17},
+  {"Mondstille",  1, 366, 8, 16},
+  {"Vorhexen",   33, 367, 8, 16},
+}
+pk.IMP_DNI_W_ROKU = 400
+
+-- Warianty pisowni z gry -&gt; nazwa kanoniczna
+pk.IMP_ALIAS = {
+  nachhexen = "nachexen", sigmarszeit = "sigmarzeit", kaltezeit = "kaldezeit",
+  ulrichszeit = "ulriczeit", sonnenstill = "sonnstill", sonnenstil = "sonnstill",
+  sonnenstille = "sonnstill", mondstill = "mondstille", mitterherbst = "mittherbst",
+  hexensnacht = "hexenstag",
+}
+
+-- ---------- SLOWNIKI LICZEBNIKOW ----------
+pk.HOUR_STEMS = {
+  {"polnoc", 0}, {"pierwsz", 1}, {"drug", 2}, {"trzec", 3}, {"czwart", 4},
+  {"piat", 5}, {"szost", 6}, {"siodm", 7}, {"osm", 8}, {"dziewiat", 9},
+  {"dziesiat", 10}, {"jedenast", 11}, {"dwunast", 12}, {"poludnie", 12},
+}
+
+-- kolejnosc ma znaczenie (dziesiatki i nastki przed jednostkami)
+pk.DAY_STEMS = {
+  {"czterdziest", 40}, {"trzydziest", 30}, {"dwudziest", 20},
+  {"dziewietnast", 19}, {"osiemnast", 18}, {"siedemnast", 17}, {"szesnast", 16},
+  {"pietnast", 15}, {"czternast", 14}, {"trzynast", 13}, {"dwunast", 12},
+  {"jedenast", 11}, {"dziesiat", 10}, {"dziewiat", 9}, {"osm", 8}, {"siodm", 7},
+  {"szost", 6}, {"piat", 5}, {"czwart", 4}, {"trzec", 3}, {"drug", 2}, {"pierwsz", 1},
+}
+
+-- ---------- STAN ----------
+pk.stan = pk.stan or { daylight = nil, season = nil, ciemno = false, domena = nil }
+-- osobna kotwica dla kazdej domeny (jak w clock.ts): {doy, hour, minute, precision, ts}
+pk.kotwice = pk.kotwice or { ishtar = nil, imperium = nil }
+pk.pending_transition = pk.pending_transition or nil  -- {typ="wschod"/"zachod", ts}
+pk.auto_request = false
+pk.ostatnie_zapytanie = 0
+pk.zsynchronizowano = false
+
+-- ---------- POMOCNICZE ----------
+local function lower(s) return string.lower(s or "") end
+
+local function stem_value(word, stems)
+  for _, pair in ipairs(stems) do
+    local stem, val = pair[1], pair[2]
+    if word:sub(1, #stem) == stem then return val end
+  end
+  return nil
+end
+
+function pk.dlugosc_roku(domena)
+  return (domena == "imperium") and pk.IMP_DNI_W_ROKU or pk.ISHTAR_DNI_W_ROKU
+end
+
+-- "trzeci" -&gt; 3, "dwudziesty drugi" -&gt; 22, "17" -&gt; 17
+function pk.parse_ordinal(text)
+  text = lower(text):gsub("^%s+", ""):gsub("%s+$", "")
+  if text == "" then return nil end
+  local n = tonumber(text)
+  if n then return math.floor(n) end
+  local words = {}
+  for w in text:gmatch("[%a]+") do words[#words + 1] = w end
+  if #words == 1 then
+    return stem_value(words[1], pk.DAY_STEMS)
+  elseif #words == 2 then
+    local t = stem_value(words[1], pk.DAY_STEMS)
+    local u = stem_value(words[2], pk.DAY_STEMS)
+    if t and u and t &gt;= 20 and u &lt; 10 then return t + u end
+  end
+  return nil
+end
+
+-- Godzina z linii "czas": slowo + regula PM (poludnie/wieczor/noca od 6).
+function pk.parse_hour(line)
+  local l = lower(line)
+  local hw = l:match("^jest w przyblizeniu (%a+)")
+  if not hw then return nil end
+  local value = stem_value(hw, pk.HOUR_STEMS)
+  if not value then return nil end
+  local seg = l:match("^jest w przyblizeniu %a+%s*(.-)%s*,") or ""
+  local daytime
+  for _, w in ipairs({"poludniu", "poludniem", "poludnie", "wieczorem", "nocy", "ranem", "rano", "dzien"}) do
+    if seg:find(w, 1, true) then daytime = w break end
+  end
+  local hours = value
+  if daytime == "poludniu" or daytime == "poludniem" or daytime == "poludnie"
+     or daytime == "wieczorem" or (daytime == "nocy" and value &gt;= 6) then
+    hours = hours + 12
+  end
+  if hours &gt; 23 then hours = 0 end
+  return hours
+end
+
+function pk.wykryj_domene(line)
+  local l = lower(line)
+  if l:find("rachuby czasu starszego ludu", 1, true) then return "ishtar" end
+  if l:find("kalendarza imperialnego", 1, true) then return "imperium" end
+  return nil
+end
+
+function pk.pora_index(pora)
+  local p = lower(pora)
+  for i, nazwa in ipairs(pk.ISHTAR_PORY) do
+    if lower(nazwa) == p then return i end
+  end
+  return nil
+end
+
+function pk.miesiac_index(miesiac)
+  local m = lower(miesiac):gsub("[^%a]", "")
+  m = pk.IMP_ALIAS[m] or m
+  for i, row in ipairs(pk.IMP_MIESIACE) do
+    if lower(row[1]) == m then return i end
+  end
+  return nil
+end
+
+-- ---------- PARSER: ISHTAR ----------
+function pk.parse_ishtar(line)
+  local hour = pk.parse_hour(line)
+  if not hour then return nil end
+  local l = lower(line)
+
+  -- wariant dwuslowny: "dwudziesty drugi dzien pory Saovine"
+  local d1, d2, pora = l:match("(%a+)%s+(%a+)%s+dzien%s+pory%s+(%a+)")
+  local day
+  if pora then
+    local t = stem_value(d1, pk.DAY_STEMS)
+    local u = stem_value(d2, pk.DAY_STEMS)
+    if t and u and t &gt;= 20 and u &lt; 10 then day = t + u end
+  end
+  -- wariant jednoslowny / cyfry: "trzeci dzien pory Yule" / "3 dzien pory Yule"
+  if not day then
+    local dt, p2 = l:match("([%a%d]+)%s+dzien%s+pory%s+(%a+)")
+    if dt and p2 then
+      day = pk.parse_ordinal(dt)
+      pora = p2
+    end
+  end
+  if day and pora then
+    local pidx = pk.pora_index(pora)
+    if pidx and day &gt;= 1 and day &lt;= pk.ISHTAR_DNI_W_PORZE then
+      return { doy = (pidx - 1) * pk.ISHTAR_DNI_W_PORZE + day, hour = hour }
+    end
+  end
+
+  -- dni specjalne bez frazy "dzien pory ..."
+  for name, doy in pairs(pk.ISHTAR_SWIETA) do
+    if l:find("%f[%a]" .. name .. "%f[^%a]") then
+      return { doy = doy, hour = hour }
+    end
+  end
+  return nil
+end
+
+-- ---------- PARSER: IMPERIUM ----------
+function pk.parse_imperium(line)
+  local hour = pk.parse_hour(line)
+  if not hour then return nil end
+  local l = lower(line)
+
+  -- "&lt;dzien&gt; dzien miesiaca &lt;miesiac&gt;" (dzien slownie, zlozony lub cyfra)
+  local d1, d2, mon = l:match("(%a+)%s+(%a+)%s+dzien%s+miesiaca%s+(%a+)")
+  local day
+  if mon then
+    local t = stem_value(d1, pk.DAY_STEMS)
+    local u = stem_value(d2, pk.DAY_STEMS)
+    if t and u and t &gt;= 20 and u &lt; 10 then day = t + u end
+    if not day then mon = nil end  -- falszywe trafienie, probujemy wariant jednoslowny
+  end
+  if not day then
+    local dt, m2 = l:match("([%a%d]+)%s+dzien%s+miesiaca%s+(%a+)")
+    if dt and m2 then
+      day = pk.parse_ordinal(dt)
+      mon = m2
+    end
+  end
+  if day and mon then
+    local midx = pk.miesiac_index(mon)
+    if midx then
+      local row = pk.IMP_MIESIACE[midx]
+      if day &gt;= 1 and day &lt;= row[2] then
+        return { doy = row[3] + day, hour = hour }
+      end
+    end
+    return nil
+  end
+
+  -- swieta interkalarne: "(dzien|noc) &lt;Swieto&gt; wedlug ..." -&gt; 1. dzien pozycji
+  local sw = l:match("dzien%s+(%a+)[%.,]?%s+wedlug") or l:match("noc%s+(%a+)[%.,]?%s+wedlug")
+  if sw then
+    local midx = pk.miesiac_index(sw)
+    if midx then
+      return { doy = pk.IMP_MIESIACE[midx][3] + 1, hour = hour }
+    end
+    -- np. "noc Geheimnisnacht": bez daty w klauzuli - NIE zgadujemy,
+    -- zostaje ekstrapolacja ze starej kotwicy.
+  end
+  return nil
+end
+
+-- ---------- KOTWICE + EKSTRAPOLACJA ----------
+function pk.sciezka_kotwicy()
+  return getMudletHomeDir() .. "/pasek_kalendarz_kotwice.lua"
+end
+
+function pk.zapisz_kotwice()
+  table.save(pk.sciezka_kotwicy(), { kotwice = pk.kotwice })
+end
+
+function pk.wczytaj_kotwice()
+  local ok, wynik = pcall(function()
+    local t = {}
+    table.load(pk.sciezka_kotwicy(), t)
+    return t
+  end)
+  if not ok or type(wynik) ~= "table" then return end
+  if type(wynik.kotwice) == "table" then
+    pk.kotwice = wynik.kotwice
+  elseif type(wynik.kotwica) == "table" and wynik.kotwica.doy then
+    -- migracja ze starego formatu (v1.0): pojedyncza kotwica
+    local k = wynik.kotwica
+    if k.domena then pk.kotwice[k.domena] = k end
+  end
+end
+
+-- Aktualny czas gry dla domeny: ekstrapolacja z kotwicy (1 min gry = 2 s RL).
+function pk.aktualny_czas(domena)
+  domena = domena or pk.stan.domena
+  if not domena then return nil end
+  local k = pk.kotwice[domena]
+  if not k then return nil end
+  local minut_gry = math.floor((os.time() - k.ts) / pk.SEKUND_RL_NA_MINUTE_GRY)
+  local total = ((k.doy - 1) * pk.MINUT_W_DOCIE + k.hour * 60 + (k.minute or 0) + minut_gry)
+                % (pk.dlugosc_roku(domena) * pk.MINUT_W_DOCIE)
+  local doy = math.floor(total / pk.MINUT_W_DOCIE) + 1
+  local hh = math.floor((total % pk.MINUT_W_DOCIE) / 60)
+  local mm = total % 60
+  return domena, doy, hh, mm, (k.precision or 0)
+end
+
+-- ---------- KALENDARZ: doy -&gt; nazwa ----------
+function pk.ishtar_pora_dnia(doy)
+  local idx = math.floor((doy - 1) / pk.ISHTAR_DNI_W_PORZE) + 1
+  return pk.ISHTAR_PORY[idx], ((doy - 1) % pk.ISHTAR_DNI_W_PORZE) + 1, idx
+end
+
+function pk.imp_miesiac_dnia(doy)
+  for i, row in ipairs(pk.IMP_MIESIACE) do
+    if doy &lt;= row[3] + row[2] then
+      return row[1], doy - row[3], i
+    end
+  end
+  return pk.IMP_MIESIACE[17][1], doy - pk.IMP_MIESIACE[17][3], 17
+end
+
+-- Wschod/zachod z tabeli dla danego dnia (do cross-checku i fallbacku daylight)
+function pk.wschod_zachod(domena, doy)
+  if domena == "imperium" then
+    local _, _, mi = pk.imp_miesiac_dnia(doy)
+    return pk.IMP_MIESIACE[mi][4], pk.IMP_MIESIACE[mi][5]
+  end
+  local _, _, pii = pk.ishtar_pora_dnia(doy)
+  return pk.ISHTAR_WSCHOD[pii], pk.ISHTAR_ZACHOD[pii]
+end
+
+-- Dzien/noc z godziny (gdy GMCP nie dostarczylo daylight)
+function pk.jest_jasno(domena, doy, hh)
+  local wschod, zachod = pk.wschod_zachod(domena, doy)
+  return hh &gt;= wschod and hh &lt; zachod
+end
+
+-- ---------- REKALIBRACJA NA WSCHODZIE/ZACHODZIE (port z clock.ts) ----------
+-- Zmiana daylight z GMCP = zaobserwowany wschod/zachod. Zegar dokreca sie
+-- do pelnej godziny (zaokraglenie w gore) z precyzja 0 - bez wysylania "czas".
+function pk.rekalibruj_na_przejsciu(typ)
+  local domena = pk.stan.domena
+  if not domena then
+    pk.pending_transition = { typ = typ, ts = os.time() }
+    return
+  end
+  if not pk.kotwice[domena] then
+    pk.pending_transition = { typ = typ, ts = os.time() }
+    return
+  end
+
+  local _, doy, hh, mm = pk.aktualny_czas(domena)
+  if mm &gt; 0 then hh = hh + 1 end
+  if hh &gt; 23 then
+    hh = 0
+    doy = doy % pk.dlugosc_roku(domena) + 1
+  end
+
+  -- cross-check z tabela wschodow/zachodow (tylko log diagnostyczny)
+  local wschod, zachod = pk.wschod_zachod(domena, doy)
+  local oczekiwana = (typ == "wschod") and wschod or zachod
+  if oczekiwana ~= hh and debugc then
+    debugc(string.format("[pasek] %s: %s o %02d:00, tabela mowi %02d:00 (dzien %d)",
+      domena, typ, hh, oczekiwana, doy))
+  end
+
+  pk.kotwice[domena] = { doy = doy, hour = hh, minute = 0, precision = 0, ts = os.time() }
+  pk.zapisz_kotwice()
+end
+
+-- Oczekujaca tranzycja (gdy przyszla przed pierwsza kotwica) - wazna 1 h gry.
+function pk.consume_pending()
+  local p = pk.pending_transition
+  pk.pending_transition = nil
+  if not p then return nil end
+  if os.time() - p.ts &gt; pk.SEKUND_RL_NA_GODZINE_GRY then return nil end
+  return p.typ
+end
+
+-- ---------- OBSŁUGA LINII "czas" ----------
+function pk.on_czas_line(line)
+  local was_auto = pk.auto_request
+  pk.auto_request = false
+
+  local domena = pk.wykryj_domene(line)
+  if domena then
+    local parsed = (domena == "ishtar") and pk.parse_ishtar(line) or pk.parse_imperium(line)
+    if parsed then
+      local k = pk.kotwice[domena]
+      local minute, precision
+      local pending = pk.consume_pending()
+      if pending then
+        -- czas przyszedl tuz po wschodzie/zachodzie: zegar dokladny
+        minute, precision = 0, 0
+      elseif k then
+        local _, cdoy, chh, cmm = pk.aktualny_czas(domena)
+        if cdoy == parsed.doy and chh == parsed.hour then
+          -- zgodnosc: zachowaj minuty, zwez precyzje do konca biezacej godziny
+          minute = cmm
+          precision = math.min(k.precision or 60, math.max(0, 60 - cmm))
+        else
+          -- rozjazd: rekalibracja na godzine z "czas"
+          minute, precision = 0, 60
+        end
+      else
+        minute, precision = 0, 60
+      end
+      pk.kotwice[domena] = { doy = parsed.doy, hour = parsed.hour, minute = minute,
+                             precision = precision, ts = os.time() }
+      pk.zapisz_kotwice()
+      if not pk.stan.domena then pk.stan.domena = domena end
+    end
+    -- jak nie sparsowane (np. Geheimnisnacht): zostaje stara kotwica (nie zgadujemy)
+    pk.render()
+  end
+
+  if was_auto and pk.cfg.gag_auto_czas then
+    deleteLine()
+  end
+end
+
+-- ---------- ZAPYTANIE O "czas" ----------
+function pk.popros_czas()
+  if os.time() - pk.ostatnie_zapytanie &lt; pk.cfg.min_odstep_zapytan then return end
+  pk.ostatnie_zapytanie = os.time()
+  pk.auto_request = true
+  send("czas")
+  -- bezpiecznik: gdyby odpowiedz nie przyszla / nie zlapala
+  tempTimer(15, function() pasek_kalendarz.auto_request = false end)
+end
+
+-- ---------- RECZNE USTAWIENIE (jak "/czas imperium 8 273" w Dargoth) ----------
+function pk.ustaw_recznie(domena_txt, godzina_txt, doy_txt)
+  local domena = (lower(domena_txt) == "imperium") and "imperium" or "ishtar"
+  local godzina = tonumber(godzina_txt)
+  if not godzina or godzina &lt; 0 or godzina &gt; 23 then
+    echo("\n(pasek) Godzina musi byc w zakresie 0-23.\n")
+    return
+  end
+  local _, doy_akt = pk.aktualny_czas(domena)
+  local doy = tonumber(doy_txt) or doy_akt or 1
+  if doy &lt; 1 or doy &gt; pk.dlugosc_roku(domena) then
+    echo(string.format("\n(pasek) Dzien roku musi byc w zakresie 1-%d.\n", pk.dlugosc_roku(domena)))
+    return
+  end
+  pk.kotwice[domena] = { doy = doy, hour = godzina, minute = 0, precision = 0, ts = os.time() }
+  pk.zapisz_kotwice()
+  pk.stan.domena = domena
+  pk.render()
+  echo(string.format("\n(pasek) Ustawiono czas %s: %02d:00, dzien %d.\n",
+    domena == "imperium" and "Imperium" or "Ishtar", godzina, doy))
+end
+
+-- ---------- GMCP ----------
+function pk.gmcp_update()
+  -- domena z GMCP (jak w kliencie Dargoth: gmcp.room.info.map.domain)
+  if gmcp and gmcp.room and gmcp.room.info and gmcp.room.info.map
+     and gmcp.room.info.map.domain then
+    local d = gmcp.room.info.map.domain
+    if d == "Imperium" then pk.stan.domena = "imperium"
+    elseif d == "Ishtar" then pk.stan.domena = "ishtar" end
+  end
+
+  if gmcp and gmcp.room and gmcp.room.time then
+    local t = gmcp.room.time
+    if t.daylight ~= nil then
+      local dl = t.daylight and true or false
+      if pk.stan.daylight ~= nil and pk.stan.daylight ~= dl then
+        -- zmiana dzien/noc = zaobserwowany wschod/zachod: dokrec zegar
+        pk.rekalibruj_na_przejsciu(dl and "wschod" or "zachod")
+      end
+      pk.stan.daylight = dl
+    end
+    if t.season ~= nil then pk.stan.season = t.season end
+  end
+
+  if gmcp and gmcp.objects and gmcp.objects.data then
+    local ciemno = false
+    for _, v in pairs(gmcp.objects.data) do
+      if type(v) == "table" and v.can_see_in_room == false then ciemno = true break end
+    end
+    pk.stan.ciemno = ciemno
+  end
+
+  -- pierwsza synchronizacja po zalogowaniu
+  if pk.cfg.auto_czas_po_zalogowaniu and not pk.zsynchronizowano
+     and gmcp and gmcp.room and gmcp.room.info then
+    pk.zsynchronizowano = true
+    tempTimer(1, function() pasek_kalendarz.popros_czas() end)
+  end
+
+  pk.render()
+end
+
+-- ---------- RENDER ----------
+function pk.render()
+  if not pk.label then return end
+  local domena, doy, hh, mm, precision = pk.aktualny_czas()
+
+  local dl = pk.stan.daylight
+  if dl == nil and domena then dl = pk.jest_jasno(domena, doy, hh) end
+
+  local ikona = (dl == true) and "☀" or (dl == false) and "☾" or "◌"
+  local pora = (dl == true) and "DZIEŃ" or (dl == false) and "NOC" or "--"
+  local czas = hh and string.format("%02d:%02d", hh, mm) or "--:--"
+  if hh and pk.cfg.pokazuj_precyzje and precision and precision &gt; 0 and precision &lt; 60 then
+    czas = czas .. " ±" .. precision
+  end
+  local dom = (domena == "ishtar") and "ISHTAR" or (domena == "imperium") and "IMPERIUM"
+  if not dom then
+    dom = (pk.stan.domena == "ishtar") and "ISHTAR" or (pk.stan.domena == "imperium") and "IMPERIUM" or "..."
+  end
+
+  local l1 = ikona .. " " .. pora .. " " .. czas .. " | " .. dom
+
+  local l2
+  if domena == "ishtar" then
+    local nazwa, dzien, nr = pk.ishtar_pora_dnia(doy)
+    l2 = string.format("DZIEŃ %d | %s | pora %d/8 | DZIEŃ ROKU %d/360", dzien, nazwa, nr, doy)
+  elseif domena == "imperium" then
+    local nazwa, dzien, nr = pk.imp_miesiac_dnia(doy)
+    l2 = string.format("DZIEŃ %d | %s | miesiąc %d/17 | DZIEŃ ROKU %d/400", dzien, nazwa, nr, doy)
+  else
+    l2 = "wpisz czas albo poczekaj na synchronizacje"
+  end
+
+  pk.label:echo("&lt;center&gt;" .. l1 .. "&lt;br&gt;" .. l2)
+
+  -- pigulka CIEMNO pod paskiem (osobny label, dokladnie na srodku)
+  if pk.ciemno_label then
+    if pk.stan.ciemno then pk.ciemno_label:show() else pk.ciemno_label:hide() end
+  end
+end
+
+function pk.tick()
+  pk.render()
+end</script>
+				<eventHandlerList>
+				</eventHandlerList>
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>ui</name>
+				<packageName></packageName>
+				<script>-- tworzy pasek (uruchamiane przy ladowaniu paczki/profilu)
+local pk = pasek_kalendarz
+if pk.label then pk.label:hide() end
+pk.label = Geyser.Label:new({
+  name = "pasek_kalendarz_label",
+  x = pk.cfg.x, y = pk.cfg.y,
+  width = pk.cfg.width, height = pk.cfg.height,
+  fgColor = "white",
+  message = "",
+})
+pk.label:setColor(unpack(pk.cfg.kolor_tla))
+pk.label:setFontSize(pk.cfg.fontSize)
+pk.label:setClickCallback(function() send("czas") end)
+
+-- pigulka CIEMNO: osobny label pod paskiem, wysrodkowany wzgledem niego
+if pk.ciemno_label then pk.ciemno_label:hide() end
+pk.ciemno_label = Geyser.Label:new({
+  name = "pasek_kalendarz_ciemno",
+  x = pk.cfg.x + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
+  y = pk.cfg.y + pk.cfg.height + pk.cfg.ciemno_odstep,
+  width = pk.cfg.ciemno_width, height = pk.cfg.ciemno_height,
+  fgColor = "white",
+  message = "&lt;center&gt;◆ CIEMNO",
+})
+pk.ciemno_label:setColor(60, 20, 20, 230)
+pk.ciemno_label:setFontSize(math.max(8, pk.cfg.fontSize - 2))
+pk.ciemno_label:hide()
+
+pk.wczytaj_kotwice()
+pk.render()</script>
+				<eventHandlerList>
+				</eventHandlerList>
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>pasek_kalendarz_gmcp</name>
+				<packageName></packageName>
+				<script>function pasek_kalendarz_gmcp()
+  pasek_kalendarz.gmcp_update()
+end</script>
+				<eventHandlerList>
+					<string>gmcp.room.time</string>
+					<string>gmcp.room.info</string>
+					<string>gmcp.objects.data</string>
+				</eventHandlerList>
+			</Script>
+		</ScriptGroup>
+	</ScriptPackage>
+	<TriggerPackage>
+		<TriggerGroup isActive="yes" isFolder="yes">
+			<name>pasek_kalendarz</name>
+			<packageName></packageName>
+			<script></script>
+			<triggerType>0</triggerType>
+			<conditonLineDelta>0</conditonLineDelta>
+			<mStayOpen>0</mStayOpen>
+			<mCommand></mCommand>
+			<mFgColor>#ff0000</mFgColor>
+			<mBgColor>#ffff00</mBgColor>
+			<mSoundFile></mSoundFile>
+			<colorTriggerFgColor>#000000</colorTriggerFgColor>
+			<colorTriggerBgColor>#000000</colorTriggerBgColor>
+			<regexCodeList />
+			<regexCodePropertyList />
+			<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+				<name>czas_line</name>
+				<script>pasek_kalendarz.on_czas_line(matches[1])</script>
+				<triggerType>0</triggerType>
+				<conditonLineDelta>0</conditonLineDelta>
+				<mStayOpen>0</mStayOpen>
+				<mCommand></mCommand>
+				<packageName></packageName>
+				<mFgColor>#ff0000</mFgColor>
+				<mBgColor>#ffff00</mBgColor>
+				<mSoundFile></mSoundFile>
+				<colorTriggerFgColor>#000000</colorTriggerFgColor>
+				<colorTriggerBgColor>#000000</colorTriggerBgColor>
+				<regexCodeList>
+					<string>^(Jest w przyblizeniu .*)$</string>
+				</regexCodeList>
+				<regexCodePropertyList>
+					<integer>1</integer>
+				</regexCodePropertyList>
+			</Trigger>
+		</TriggerGroup>
+	</TriggerPackage>
+	<TimerPackage>
+		<TimerGroup isActive="yes" isFolder="yes">
+			<name>pasek_kalendarz</name>
+			<packageName></packageName>
+			<script></script>
+			<command></command>
+			<time>00:00:00.000</time>
+			<Timer isActive="yes" isFolder="no" isTempTimer="no" isOffsetTimer="no">
+				<name>tick</name>
+				<script>pasek_kalendarz.tick()</script>
+				<command></command>
+				<packageName></packageName>
+				<time>00:00:02.000</time>
+			</Timer>
+		</TimerGroup>
+	</TimerPackage>
+	<AliasPackage>
+		<AliasGroup isActive="yes" isFolder="yes">
+			<name>pasek_kalendarz</name>
+			<packageName></packageName>
+			<script></script>
+			<command></command>
+			<regex></regex>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_sync</name>
+				<script>send("czas")</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^pasek$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_reset</name>
+				<script>pasek_kalendarz.kotwice = { ishtar = nil, imperium = nil }
+os.remove(pasek_kalendarz.sciezka_kotwicy())
+pasek_kalendarz.render()
+echo("\n(pasek) Kotwice czasu wyczyszczone. Wpisz czas, zeby zsynchronizowac.\n")</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^pasek reset$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_ustaw</name>
+				<script>pasek_kalendarz.ustaw_recznie(matches[2], matches[3], matches[4])</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^pasek ustaw (imperium|ishtar) (\d+)(?: (\d+))?$</regex>
+			</Alias>
+		</AliasGroup>
+	</AliasPackage>
+</MudletPackage>
