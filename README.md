@@ -54,8 +54,6 @@ Kolory podaje się jako trzy liczby 0–255 (RGB), np. `pasek tlo 40 0 60 180`. 
 
 - przelicznik czasu: 2 sekundy RL = 1 minuta IG (doba gry = 48 minut RL)
 - kalendarz Ishtar: 360 dni (8 pór roku po 45 dni); Kalendarz Imperialny: 400 dni (17 pozycji ze świętami interkalarnymi)
-- od v1.5.0 plugin nie wysyła już sam komendy `czas` po zalogowaniu — synchronizacja wyłącznie świadoma (komenda `czas`, klik w pasek, alias `pasek`), zgodnie z pkt 2 Zasad Arkadii
-- od v1.4.1 poprawka parsera godziny: „poludnie”/„poludniem” po słowie godziny nie dodają już 12 (np. „poludnie poludniem” = 12:00, wcześniej błędnie 0:00)
 - silnik kalendarza przeniesiony 1:1 z pluginów Dargoth ([ishtar_cal / imperium_cal](https://github.com/Isithunzi000/arkadia-dargoth-plugins))
 - mechaniki „życia” zegara (kotwice, rekalibracja na wschodzie/zachodzie, model precyzji) — wg rozwiązania z repo [Delwing/arkadia-web-client-extension](https://github.com/Delwing/arkadia-web-client-extension) (`src/client/scripts/clock.ts`)
 - pozycję i kolory paska ustawisz komendami (`pasek pozycja`, `pasek tlo` itd. — patrz wyżej); zapisują się na dysku razem z kotwicami czasu
