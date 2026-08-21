@@ -31,9 +31,6 @@ pk.cfg = pk.cfg or {
   kolor_tla = {25, 20, 30, 210},     -- tlo paska (RGBA)
   kolor_tekstu = {255, 255, 255},    -- tekst paska (RGB)
   kolor_ciemno = {60, 20, 20, 230},  -- tlo pigulki CIEMNO (RGBA)
-  auto_czas_po_zalogowaniu = true,   -- wysyla "czas" po wejsciu do gry (pierwsza synchronizacja)
-  gag_auto_czas = true,              -- ukrywa automatyczne odpowiedzi na "czas"
-  min_odstep_zapytan = 60,           -- min. sekundy RL miedzy auto-zapytaniami "czas"
   pokazuj_precyzje = true,           -- "HH:MM ±N" gdy zegar jest czesciowo pewny (1-59)
 }
 
@@ -120,9 +117,6 @@ pk.stan = pk.stan or { daylight = nil, season = nil, ciemno = false, domena = ni
 -- osobna kotwica dla kazdej domeny (jak w clock.ts): {doy, hour, minute, precision, ts}
 pk.kotwice = pk.kotwice or { ishtar = nil, imperium = nil }
 pk.pending_transition = pk.pending_transition or nil  -- {typ="wschod"/"zachod", ts}
-pk.auto_request = false
-pk.ostatnie_zapytanie = 0
-pk.zsynchronizowano = false
 
 -- ---------- POMOCNICZE ----------
 local function lower(s) return string.lower(s or "") end
@@ -412,9 +406,6 @@ end
 
 -- ---------- OBSŁUGA LINII "czas" ----------
 function pk.on_czas_line(line)
-  local was_auto = pk.auto_request
-  pk.auto_request = false
-
   local domena = pk.wykryj_domene(line)
   if domena then
     local parsed = (domena == "ishtar") and pk.parse_ishtar(line) or pk.parse_imperium(line)
@@ -447,19 +438,6 @@ function pk.on_czas_line(line)
     pk.render()
   end
 
-  if was_auto and pk.cfg.gag_auto_czas then
-    deleteLine()
-  end
-end
-
--- ---------- ZAPYTANIE O "czas" ----------
-function pk.popros_czas()
-  if os.time() - pk.ostatnie_zapytanie &lt; pk.cfg.min_odstep_zapytan then return end
-  pk.ostatnie_zapytanie = os.time()
-  pk.auto_request = true
-  send("czas")
-  -- bezpiecznik: gdyby odpowiedz nie przyszla / nie zlapala
-  tempTimer(15, function() pasek_kalendarz.auto_request = false end)
 end
 
 -- ---------- RECZNE USTAWIENIE (jak "/czas imperium 8 273" w Dargoth) ----------
@@ -607,13 +585,6 @@ function pk.gmcp_update()
     pk.stan.ciemno = ciemno
   end
 
-  -- pierwsza synchronizacja po zalogowaniu
-  if pk.cfg.auto_czas_po_zalogowaniu and not pk.zsynchronizowano
-     and gmcp and gmcp.room and gmcp.room.info then
-    pk.zsynchronizowano = true
-    tempTimer(1, function() pasek_kalendarz.popros_czas() end)
-  end
-
   pk.render()
 end
 
@@ -646,7 +617,7 @@ function pk.render()
     local nazwa, dzien = pk.imp_miesiac_dnia(doy)
     l2 = string.format("DZIEŃ %d | %s | DZIEŃ ROKU %d/400", dzien, nazwa, doy)
   else
-    l2 = "wpisz czas albo poczekaj na synchronizacje"
+    l2 = "wpisz czas albo kliknij pasek"
   end
 
   pk.label:echo("&lt;center&gt;" .. l1 .. "&lt;br&gt;" .. l2)
