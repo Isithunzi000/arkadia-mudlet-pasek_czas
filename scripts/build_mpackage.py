@@ -3,7 +3,7 @@
 
 - Wersja: PLUGIN_VERSION z pasek_kalendarz_arkadia.xml (jedyne zrodlo prawdy).
 - config.lua: author Isithunzi000, bez pola created (determinizm).
-- W mpackage XML nosi nazwe pakietu: "pasek kalendarz arkadia.xml".
+- W mpackage XML nosi nazwe pakietu: "pasek_kalendarz_arkadia.xml".
 - Wpisy sortowane, timestampy sztywne (1980-01-01), stale uprawnienia.
 - Dwukrotny build daje identyczny SHA-256 (bramka publikacji w CI).
 Wypisuje: sciezki artefaktow (dist/) i ich SHA-256.
@@ -15,16 +15,17 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XML_NAME = "pasek_kalendarz_arkadia.xml"
-XML_IN_PACKAGE = "pasek kalendarz arkadia.xml"
+XML_IN_PACKAGE = "pasek_kalendarz_arkadia.xml"
 ASSET_BASE = "pasek_kalendarz"
-PACKAGE = "pasek kalendarz arkadia"
+PACKAGE = "pasek_kalendarz_arkadia"
 TITLE = "Pasek kalendarza Arkadii (Ishtar / Imperium)"
 DESCRIPTION = ("Zyjacy pasek kalendarza: zegar gry, data Ishtar/Imperium, "
                "dzien/noc, wskaznik CIEMNO pod paskiem. Synchronizacja wylacznie "
                "na swiadome zadanie gracza (komenda czas, klik w pasek, alias "
-               "pasek) oraz pasywnie z GMCP; rekalibracja na wschodzie/zachodzie "
+               "/pasek) oraz pasywnie z GMCP; rekalibracja na wschodzie/zachodzie "
                "slonca. Plugin nigdy nie wysyla komend samodzielnie (pkt 2 Zasad "
-               "Arkadii). Komendy: pasek pomoc (pozycja, kolory, tlo, domyslne).")
+               "Arkadii). Autoaktualizacja z GitHub Releases. Komendy: /pasek "
+               "pomoc (pozycja, kolory, wartosci, aktualizuj).")
 OUT_DIR = os.path.join(ROOT, "dist")
 FIXED_DATE = (1980, 1, 1, 0, 0, 0)
 FILE_ATTR = 0o100644 << 16

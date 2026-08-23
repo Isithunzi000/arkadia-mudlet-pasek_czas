@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.5.1"
+local PLUGIN_VERSION = "1.6.0"
 
 -- ---------- KONFIGURACJA ----------
 pk.cfg = pk.cfg or {
@@ -35,7 +35,7 @@ pk.cfg = pk.cfg or {
   pokazuj_precyzje = true,           -- "HH:MM ±N" gdy zegar jest czesciowo pewny (1-59)
 }
 
--- wartosci fabryczne (dla komendy "pasek domyslne")
+-- wartosci fabryczne (dla komendy "/pasek domyslne")
 pk.FABRYCZNE = {
   x = 150, y = 20,
   kolor_tla = {25, 20, 30, 210},
@@ -309,7 +309,7 @@ function pk.wczytaj_kotwice()
     local k = wynik.kotwica
     if k.domena then pk.kotwice[k.domena] = k end
   end
-  -- zapisana konfiguracja wygladu/pozycji (komendy "pasek ...")
+  -- zapisana konfiguracja wygladu/pozycji (komendy "/pasek ...")
   if type(wynik.cfg) == "table" then
     for _, klucz in ipairs({"x", "y", "kolor_tla", "kolor_tekstu", "kolor_ciemno"}) do
       if wynik.cfg[klucz] ~= nil then pk.cfg[klucz] = wynik.cfg[klucz] end
@@ -494,7 +494,7 @@ end
 
 function pk.komenda_pozycja(xs, ys)
   local x, y = tonumber(xs), tonumber(ys)
-  if not x or not y then echo("\n(pasek) Uzycie: pasek pozycja X Y\n") return end
+  if not x or not y then echo("\n(pasek) Uzycie: /pasek pozycja X Y\n") return end
   pk.cfg.x, pk.cfg.y = math.floor(x), math.floor(y)
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
@@ -503,7 +503,7 @@ end
 
 function pk.komenda_tlo(rs, gs, bs, as)
   local k = parse_rgb(rs, gs, bs, as, 210)
-  if not k then echo("\n(pasek) Uzycie: pasek tlo R G B [A], wartosci 0-255\n") return end
+  if not k then echo("\n(pasek) Uzycie: /pasek tlo R G B [A], wartosci 0-255\n") return end
   pk.cfg.kolor_tla = k
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
@@ -512,7 +512,7 @@ end
 
 function pk.komenda_tekst(rs, gs, bs)
   local k = parse_rgb(rs, gs, bs, nil, 255)
-  if not k then echo("\n(pasek) Uzycie: pasek tekst R G B, wartosci 0-255\n") return end
+  if not k then echo("\n(pasek) Uzycie: /pasek tekst R G B, wartosci 0-255\n") return end
   pk.cfg.kolor_tekstu = {k[1], k[2], k[3]}
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
@@ -521,7 +521,7 @@ end
 
 function pk.komenda_ciemno(rs, gs, bs, as)
   local k = parse_rgb(rs, gs, bs, as, 230)
-  if not k then echo("\n(pasek) Uzycie: pasek ciemno R G B [A], wartosci 0-255\n") return end
+  if not k then echo("\n(pasek) Uzycie: /pasek ciemno R G B [A], wartosci 0-255\n") return end
   pk.cfg.kolor_ciemno = k
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
@@ -541,14 +541,16 @@ end
 
 function pk.komenda_pomoc()
   echo("(pasek v" .. PLUGIN_VERSION .. ") Komendy:\n" .. [[
-  pasek                        - synchronizacja zegara (wysyla czas)
-  pasek pozycja X Y            - przesuniecie paska (pigulka CIEMNO podaza za paskiem)
-  pasek tlo R G B [A]          - tlo paska, np.: pasek tlo 0 0 0 180
-  pasek tekst R G B            - kolor tekstu paska, np.: pasek tekst 255 255 0
-  pasek ciemno R G B [A]       - tlo pigulki CIEMNO, np.: pasek ciemno 60 20 20 230
-  pasek domyslne               - powrot do ustawien fabrycznych
-  pasek ustaw imperium 8 273   - reczne ustawienie zegara (domena, godzina 0-23, dzien roku)
-  pasek reset                  - czysci zapisane kotwice czasu
+  /pasek                        - synchronizacja zegara (wysyla czas)
+  /pasek pozycja X Y            - przesuniecie paska (pigulka CIEMNO podaza za paskiem)
+  /pasek wartosci               - aktualne wartosci: pozycja i kolory (z fabrycznymi)
+  /pasek tlo R G B [A]          - tlo paska, np.: /pasek tlo 0 0 0 180
+  /pasek tekst R G B            - kolor tekstu paska, np.: /pasek tekst 255 255 0
+  /pasek ciemno R G B [A]       - tlo pigulki CIEMNO, np.: /pasek ciemno 60 20 20 230
+  /pasek domyslne               - powrot do ustawien fabrycznych
+  /pasek ustaw imperium 8 273   - reczne ustawienie zegara (domena, godzina 0-23, dzien roku)
+  /pasek reset                  - czysci zapisane kotwice czasu
+  /pasek aktualizuj             - sprawdz i zainstaluj aktualizacje
   Kolory: R G B A w zakresie 0-255 (A = przezroczystosc, opcjonalne).
   Ustawienia zapisuja sie na dysku i przechodza przez restart klienta.
 ]])
@@ -628,6 +630,194 @@ function pk.render()
   end
 end
 
+-- ---------- KOMENDA WARTOSCI (1.6.0) ----------
+local function fmt_rgb(k)
+  return table.concat(k, " ")
+end
+
+function pk.komenda_wartosci()
+  local c, f = pk.cfg, pk.FABRYCZNE
+  echo("\n(pasek v" .. PLUGIN_VERSION .. ") Aktualne wartosci (w nawiasach fabryczne):\n" ..
+    string.format("  pozycja: x=%d y=%d  (x=%d y=%d)\n", c.x, c.y, f.x, f.y) ..
+    "  tlo:     " .. fmt_rgb(c.kolor_tla) .. "  (" .. fmt_rgb(f.kolor_tla) .. ")\n" ..
+    "  tekst:   " .. fmt_rgb(c.kolor_tekstu) .. "  (" .. fmt_rgb(f.kolor_tekstu) .. ")\n" ..
+    "  ciemno:  " .. fmt_rgb(c.kolor_ciemno) .. "  (" .. fmt_rgb(f.kolor_ciemno) .. ")\n")
+end
+
+-- ---------- AUTOAKTUALIZACJA (1.6.0) ----------
+-- Repo publiczne na GitHub: releases/latest (anonimowe API) -> asset
+-- .mpackage -> uninstallPackage -> installPackage (wzorzec skryptow
+-- aktualizacji Tjurczyka). Check przy starcie z throttlem 8 h (cache na
+-- dysku profilu); miedzy checkami powiadomienie odtwarzane z knownLatest.
+-- Komenda /pasek aktualizuj pomija throttle. Przy aktualizacji sprzata
+-- tez stara nazwe paczki ("pasek kalendarz arkadia" - przed 1.6.0).
+local UPDATE_REPO         = "arkadia-mudlet-pasek_czas"
+local UPDATE_PKG_NAME     = "pasek_kalendarz_arkadia"
+local UPDATE_LEGACY_PKG   = "pasek kalendarz arkadia"
+local UPDATE_CMD          = "/pasek aktualizuj"
+local UPDATE_THROTTLE_SEC = 8 * 3600
+local UPDATE_API_URL      = "https://api.github.com/repos/Isithunzi000/" .. UPDATE_REPO .. "/releases/latest"
+local UPDATE_CACHE_PATH   = getMudletHomeDir() .. "/pasek_kalendarz_update_cache.lua"
+
+local updateDlHandlers = {}
+local updateMetaPath = nil
+local updatePkgPath = nil
+local updatePendingVersion = nil
+local updateManual = false
+
+local function updateCacheRead()
+  local t = {}
+  local ok, res = pcall(table.load, UPDATE_CACHE_PATH, t)
+  if ok and res then return t end
+  return {}
+end
+
+local function updateCacheWrite(latest)
+  pcall(table.save, UPDATE_CACHE_PATH, { lastCheck = os.time(), knownLatest = latest })
+end
+
+local function updateVersionParts(v)
+  local parts = {}
+  for seg in tostring(v):gmatch("[^%.]+") do
+    parts[#parts + 1] = tonumber(seg:match("^%d+")) or 0
+  end
+  return parts
+end
+
+-- Porownanie numeryczne segmentow: 1.4.9 < 1.5.1 (string dalby falszywy alarm).
+local function updateVersionNewer(a, b)
+  local pa, pb = updateVersionParts(a), updateVersionParts(b)
+  for i = 1, math.max(#pa, #pb) do
+    local x, y = pa[i] or 0, pb[i] or 0
+    if x ~= y then return x > y end
+  end
+  return false
+end
+
+local function updateSay(msg)
+  echo("\n(pasek) " .. msg .. "\n")
+end
+
+local function updateNotify(latest)
+  echo("\n(pasek) Dostepna nowa wersja " .. latest .. " (masz " .. PLUGIN_VERSION ..
+    "). Wpisz " .. UPDATE_CMD .. " aby zaktualizowac.\n")
+end
+
+local function updateFail(what)
+  updateSay("Nie udalo sie " .. what .. " - sprobuj pozniej.")
+end
+
+local function updateKillHandlers()
+  for k, id in pairs(updateDlHandlers) do
+    killAnonymousEventHandler(id)
+    updateDlHandlers[k] = nil
+  end
+end
+
+local function updateOnError(event)
+  updateKillHandlers()
+  updateMetaPath = nil
+  updatePkgPath = nil
+  updatePendingVersion = nil
+  updateFail("sprawdzic aktualizacji")
+end
+
+local function updateOnPkgDone(event, path)
+  if path ~= updatePkgPath then return end
+  updateKillHandlers()
+  local v = updatePendingVersion
+  updatePkgPath = nil
+  updatePendingVersion = nil
+  pcall(uninstallPackage, UPDATE_LEGACY_PKG)
+  pcall(uninstallPackage, UPDATE_PKG_NAME)
+  tempTimer(1, function()
+    installPackage(path)
+    os.remove(path)
+    updateSay("Zaktualizowano do wersji " .. v .. ". Zrestartuj Mudleta, aby zmiany zadzialaly.")
+  end)
+end
+
+local function updateOnMetaDone(event, path)
+  if path ~= updateMetaPath then return end
+  updateMetaPath = nil
+  if updateDlHandlers.meta then
+    killAnonymousEventHandler(updateDlHandlers.meta)
+    updateDlHandlers.meta = nil
+  end
+  local ok, meta = pcall(function()
+    local f = io.open(path, "r")
+    if not f then error("brak pliku metadanych") end
+    local body = f:read("*a")
+    f:close()
+    return yajl.to_value(body)
+  end)
+  if not ok or type(meta) ~= "table" or type(meta.tag_name) ~= "string" then
+    updateKillHandlers()
+    updateFail("sprawdzic aktualizacji")
+    return
+  end
+  local latest = meta.tag_name:gsub("^v", "")
+  updateCacheWrite(latest)
+  if not updateVersionNewer(latest, PLUGIN_VERSION) then
+    updateKillHandlers()
+    if updateManual then updateSay("Masz najnowsza wersje (" .. PLUGIN_VERSION .. ").") end
+    return
+  end
+  if not updateManual then
+    updateKillHandlers()
+    updateNotify(latest)
+    return
+  end
+  local url = nil
+  if type(meta.assets) == "table" then
+    for _, a in ipairs(meta.assets) do
+      if type(a) == "table" and type(a.browser_download_url) == "string"
+         and a.browser_download_url:match("%.mpackage$") then
+        url = a.browser_download_url
+        break
+      end
+    end
+  end
+  if not url then
+    url = "https://github.com/Isithunzi000/" .. UPDATE_REPO .. "/releases/download/v" ..
+          latest .. "/pasek_kalendarz_" .. latest:gsub("%.", "_") .. ".mpackage"
+  end
+  updatePendingVersion = latest
+  updatePkgPath = getMudletHomeDir() .. "/pasek_kalendarz_update.mpackage"
+  updateDlHandlers.pkg = registerAnonymousEventHandler("sysDownloadDone", updateOnPkgDone)
+  downloadFile(updatePkgPath, url)
+end
+
+local function startUpdateCheck(manual)
+  updateManual = manual and true or false
+  if mudletOlderThan and mudletOlderThan(4, 6) then
+    if updateManual then updateSay("Aktualizator wymaga Mudleta 4.6 lub nowszego.") end
+    return
+  end
+  if not updateManual then
+    local cache = updateCacheRead()
+    local lastCheck = tonumber(cache.lastCheck) or 0
+    if os.time() - lastCheck < UPDATE_THROTTLE_SEC then
+      if type(cache.knownLatest) == "string"
+         and updateVersionNewer(cache.knownLatest, PLUGIN_VERSION) then
+        updateNotify(cache.knownLatest)
+      end
+      return
+    end
+  end
+  updateMetaPath = getMudletHomeDir() .. "/pasek_kalendarz_update_meta.json"
+  updateDlHandlers.meta = registerAnonymousEventHandler("sysDownloadDone", updateOnMetaDone)
+  updateDlHandlers.err  = registerAnonymousEventHandler("sysDownloadError", updateOnError)
+  downloadFile(updateMetaPath, UPDATE_API_URL)
+end
+
+function pk.onAktualizuj()
+  startUpdateCheck(true)
+end
+
+-- check przy starcie klienta (opozniony, zeby nie blokowac ladowania)
+tempTimer(10, function() startUpdateCheck(false) end)
+
 function pk.tick()
   pk.render()
 end</script>
@@ -640,7 +830,7 @@ end</script>
 				<script>-- tworzy pasek (uruchamiane przy ladowaniu paczki/profilu)
 local pk = pasek_kalendarz
 
--- najpierw zapisana konfiguracja (kotwice + wyglad z komend "pasek ...")
+-- najpierw zapisana konfiguracja (kotwice + wyglad z komend "/pasek ...")
 pk.wczytaj_kotwice()
 
 if pk.label then pk.label:hide() end
@@ -754,7 +944,7 @@ end</script>
 				<script>send("czas")</script>
 				<command></command>
 				<packageName></packageName>
-				<regex>^pasek$</regex>
+				<regex>^/pasek$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_reset</name>
@@ -764,56 +954,70 @@ pasek_kalendarz.render()
 echo("\n(pasek) Kotwice czasu wyczyszczone. Wpisz czas, zeby zsynchronizowac.\n")</script>
 				<command></command>
 				<packageName></packageName>
-				<regex>^pasek reset$</regex>
+				<regex>^/pasek reset$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_ustaw</name>
 				<script>pasek_kalendarz.ustaw_recznie(matches[2], matches[3], matches[4])</script>
 				<command></command>
 				<packageName></packageName>
-				<regex>^pasek ustaw (imperium|ishtar) (\d+)(?: (\d+))?$</regex>
+				<regex>^/pasek ustaw (imperium|ishtar) (\d+)(?: (\d+))?$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_pomoc</name>
 				<script>pasek_kalendarz.komenda_pomoc()</script>
 				<command></command>
 				<packageName></packageName>
-				<regex>^pasek (pomoc|help)$</regex>
+				<regex>^/pasek (pomoc|help)$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_pozycja</name>
 				<script>pasek_kalendarz.komenda_pozycja(matches[2], matches[3])</script>
 				<command></command>
 				<packageName></packageName>
-				<regex>^pasek pozycja (\d+) (\d+)$</regex>
+				<regex>^/pasek pozycja (\d+) (\d+)$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_tlo</name>
 				<script>pasek_kalendarz.komenda_tlo(matches[2], matches[3], matches[4], matches[5])</script>
 				<command></command>
 				<packageName></packageName>
-				<regex>^pasek tlo (\d+) (\d+) (\d+)(?: (\d+))?$</regex>
+				<regex>^/pasek tlo (\d+) (\d+) (\d+)(?: (\d+))?$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_tekst</name>
 				<script>pasek_kalendarz.komenda_tekst(matches[2], matches[3], matches[4])</script>
 				<command></command>
 				<packageName></packageName>
-				<regex>^pasek tekst (\d+) (\d+) (\d+)$</regex>
+				<regex>^/pasek tekst (\d+) (\d+) (\d+)$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_ciemno</name>
 				<script>pasek_kalendarz.komenda_ciemno(matches[2], matches[3], matches[4], matches[5])</script>
 				<command></command>
 				<packageName></packageName>
-				<regex>^pasek ciemno (\d+) (\d+) (\d+)(?: (\d+))?$</regex>
+				<regex>^/pasek ciemno (\d+) (\d+) (\d+)(?: (\d+))?$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_domyslne</name>
 				<script>pasek_kalendarz.komenda_domyslne()</script>
 				<command></command>
 				<packageName></packageName>
-				<regex>^pasek domyslne$</regex>
+				<regex>^/pasek domyslne$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_wartosci</name>
+				<script>pasek_kalendarz.komenda_wartosci()</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek wartosci$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_aktualizuj</name>
+				<script>pasek_kalendarz.onAktualizuj()</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek aktualizuj$</regex>
 			</Alias>
 		</AliasGroup>
 	</AliasPackage>
