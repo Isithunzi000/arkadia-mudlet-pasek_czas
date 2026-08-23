@@ -21,6 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
+local PLUGIN_VERSION = "1.5.1"
 
 -- ---------- KONFIGURACJA ----------
 pk.cfg = pk.cfg or {
@@ -539,8 +540,7 @@ function pk.komenda_domyslne()
 end
 
 function pk.komenda_pomoc()
-  echo([[
-(pasek) Komendy:
+  echo("(pasek v" .. PLUGIN_VERSION .. ") Komendy:\n" .. [[
   pasek                        - synchronizacja zegara (wysyla czas)
   pasek pozycja X Y            - przesuniecie paska (pigulka CIEMNO podaza za paskiem)
   pasek tlo R G B [A]          - tlo paska, np.: pasek tlo 0 0 0 180
