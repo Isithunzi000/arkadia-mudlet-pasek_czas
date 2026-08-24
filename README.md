@@ -63,6 +63,19 @@ Pakiet sam sprawdza aktualizacje: przy starcie klienta (nie częściej niż co 8
 
 > **Zmiana w 1.6.0 (łamiąca):** komendy przeszły na prefiks `/pasek` (stare formy bez ukośnika nie działają), a paczka ma nową nazwę `pasek_kalendarz_arkadia`. Przy pierwszej aktualizacji ze starszej wersji odinstaluj ręcznie starą paczkę `pasek kalendarz arkadia` w Menedżerze pakietów, żeby nie mieć dwóch kopii naraz.
 
+Od wersji **1.6.2** oba assety wydania mają stałe nazwy (`pasek_kalendarz_arkadia.mpackage`, `pasek_kalendarz_arkadia.xml`), a aktualizator przed instalacją sprząta historyczne nazwy pakietów — jedna paczka zostaje w profilu zawsze pod nazwą `pasek_kalendarz_arkadia`.
+
+### Mudlet web — jednorazowe czyszczenie
+
+Starsze wydania na mudlet-web (Mudlet w przeglądarce) brały nazwę paczki od nazwy pliku. Po zainstalowaniu wersji 1.6.2 lub nowszej otwórz **Package Manager** i odinstaluj ręcznie wszystkie pozycje z poniższej listy, jeśli je widzisz (zostaw tylko `pasek_kalendarz_arkadia`):
+
+- `pasek_kalendarz_update`
+- `pasek_kalendarz_1_2_0`, `pasek_kalendarz_1_3_0`, `pasek_kalendarz_1_4_0`, `pasek_kalendarz_1_4_1`, `pasek_kalendarz_1_5_0`, `pasek_kalendarz_1_5_1`, `pasek_kalendarz_1_6_1`
+
+To czyszczenie robisz tylko raz — kolejne aktualizacje sprzątają te nazwy samoczynnie.
+
+> Jeśli po odinstalowaniu paczki w konsoli narasta błąd `timer "tick": ... attempt to index global 'pasek_kalendarz'`, to osierocony timer z poprzedniej wersji: wpisz w linii poleceń `lua killTimer("tick")` (powtórz, aż błędy ustaną). Od 1.6.2 timer sam sprząta się w tej sytuacji.
+
 ---
 
 ## Uwagi

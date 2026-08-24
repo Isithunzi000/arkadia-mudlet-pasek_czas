@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.1"
+local PLUGIN_VERSION = "1.6.2"
 
 -- ---------- KONFIGURACJA ----------
 pk.cfg = pk.cfg or {
@@ -651,6 +651,8 @@ end
 -- dysku profilu); miedzy checkami powiadomienie odtwarzane z knownLatest.
 -- Komenda /pasek aktualizuj pomija throttle. Przy aktualizacji sprzata
 -- tez stara nazwe paczki ("pasek kalendarz arkadia" - przed 1.6.0).
+-- Stala tozsamosc paczki (F1/F2): download do &lt;pkg&gt;.mpackage i sweep
+-- legacy nazw przed instalacja (mudlet-web nazywa paczke od pliku).
 local UPDATE_REPO         = "arkadia-mudlet-pasek_czas"
 local UPDATE_PKG_NAME     = "pasek_kalendarz_arkadia"
 local UPDATE_LEGACY_PKG   = "pasek kalendarz arkadia"
@@ -658,6 +660,17 @@ local UPDATE_CMD          = "/pasek aktualizuj"
 local UPDATE_THROTTLE_SEC = 8 * 3600
 local UPDATE_API_URL      = "https://api.github.com/repos/Isithunzi000/" .. UPDATE_REPO .. "/releases/latest"
 local UPDATE_CACHE_PATH   = getMudletHomeDir() .. "/pasek_kalendarz_update_cache.lua"
+-- Historyczne nazwy paczek na mudlet-web (tozsamosc = nazwa pliku):
+-- wersjonowane assety (baza pasek_kalendarz) + dawniej &lt;pkg&gt;_update.
+-- Komplet wg Releases API (tagi 1.2.0-1.6.1 ciagle, bez dzur);
+-- self = kamizelka na lokalne buildy.
+local UPDATE_LEGACY_PKGS = {
+  "pasek_kalendarz_update",
+  "pasek_kalendarz_1_2_0", "pasek_kalendarz_1_3_0", "pasek_kalendarz_1_4_0",
+  "pasek_kalendarz_1_4_1", "pasek_kalendarz_1_5_0", "pasek_kalendarz_1_5_1",
+  "pasek_kalendarz_1_6_1",
+  "pasek_kalendarz_" .. PLUGIN_VERSION:gsub("%.", "_"),
+}
 
 local updateDlHandlers = {}
 local updateMetaPath = nil
@@ -730,6 +743,9 @@ local function updateOnPkgDone(event, path)
   updatePendingVersion = nil
   pcall(uninstallPackage, UPDATE_LEGACY_PKG)
   pcall(uninstallPackage, UPDATE_PKG_NAME)
+  for _, legacyName in ipairs(UPDATE_LEGACY_PKGS) do
+    pcall(uninstallPackage, legacyName)
+  end
   tempTimer(1, function()
     installPackage(path)
     os.remove(path)
@@ -780,10 +796,10 @@ local function updateOnMetaDone(event, path)
   end
   if not url then
     url = "https://github.com/Isithunzi000/" .. UPDATE_REPO .. "/releases/download/v" ..
-          latest .. "/pasek_kalendarz_" .. latest:gsub("%.", "_") .. ".mpackage"
+          latest .. "/" .. UPDATE_PKG_NAME .. ".mpackage"
   end
   updatePendingVersion = latest
-  updatePkgPath = getMudletHomeDir() .. "/pasek_kalendarz_update.mpackage"
+  updatePkgPath = getMudletHomeDir() .. "/" .. UPDATE_PKG_NAME .. ".mpackage"
   updateDlHandlers.pkg = registerAnonymousEventHandler("sysDownloadDone", updateOnPkgDone)
   downloadFile(updatePkgPath, url)
 end
@@ -925,7 +941,7 @@ end</script>
 			<time>00:00:00.000</time>
 			<Timer isActive="yes" isFolder="no" isTempTimer="no" isOffsetTimer="no">
 				<name>tick</name>
-				<script>pasek_kalendarz.tick()</script>
+				<script>if pasek_kalendarz and pasek_kalendarz.tick then pasek_kalendarz.tick() else killTimer("tick") end</script>
 				<command></command>
 				<packageName></packageName>
 				<time>00:00:02.000</time>

@@ -1,4 +1,4 @@
-# Release — tag v* publikuje pasek_kalendarz_<wersja>.xml + pasek_kalendarz_<wersja>.mpackage.
+# Release — tag v* publikuje pasek_kalendarz_arkadia.xml + pasek_kalendarz_arkadia.mpackage (F3: stale nazwy).
 # Guard: tag (bez v) == PLUGIN_VERSION w pasek_kalendarz_arkadia.xml (mismatch = exit 1).
 # Bramka determinizmu: dwukrotny build musi dac identyczny SHA-256.
 # Idempotencja: ponowny run dla istniejacego release nadpisuje assety (--clobber).
