@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.2"
+local PLUGIN_VERSION = "1.6.3"
 
 -- ---------- KONFIGURACJA ----------
 pk.cfg = pk.cfg or {
@@ -836,6 +836,12 @@ tempTimer(10, function() startUpdateCheck(false) end)
 
 function pk.tick()
   pk.render()
+end
+
+-- komunikat ladowania (paritet z ishtar/imperium)
+if cecho then
+  cecho("&lt;green&gt;[pasek_kalendarz]&lt;reset&gt; Pasek kalendarza v" .. PLUGIN_VERSION ..
+        " zaladowany. Wpisz &lt;yellow&gt;/pasek&lt;reset&gt; (pomoc: &lt;yellow&gt;/pasek pomoc&lt;reset&gt;).\n")
 end</script>
 				<eventHandlerList>
 				</eventHandlerList>
