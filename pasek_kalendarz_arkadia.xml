@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.0"
+local PLUGIN_VERSION = "1.6.1"
 
 -- ---------- KONFIGURACJA ----------
 pk.cfg = pk.cfg or {
@@ -645,8 +645,8 @@ function pk.komenda_wartosci()
 end
 
 -- ---------- AUTOAKTUALIZACJA (1.6.0) ----------
--- Repo publiczne na GitHub: releases/latest (anonimowe API) -> asset
--- .mpackage -> uninstallPackage -> installPackage (wzorzec skryptow
+-- Repo publiczne na GitHub: releases/latest (anonimowe API) -&gt; asset
+-- .mpackage -&gt; uninstallPackage -&gt; installPackage (wzorzec skryptow
 -- aktualizacji Tjurczyka). Check przy starcie z throttlem 8 h (cache na
 -- dysku profilu); miedzy checkami powiadomienie odtwarzane z knownLatest.
 -- Komenda /pasek aktualizuj pomija throttle. Przy aktualizacji sprzata
@@ -684,12 +684,12 @@ local function updateVersionParts(v)
   return parts
 end
 
--- Porownanie numeryczne segmentow: 1.4.9 < 1.5.1 (string dalby falszywy alarm).
+-- Porownanie numeryczne segmentow: 1.4.9 &lt; 1.5.1 (string dalby falszywy alarm).
 local function updateVersionNewer(a, b)
   local pa, pb = updateVersionParts(a), updateVersionParts(b)
   for i = 1, math.max(#pa, #pb) do
     local x, y = pa[i] or 0, pb[i] or 0
-    if x ~= y then return x > y end
+    if x ~= y then return x &gt; y end
   end
   return false
 end
@@ -797,7 +797,7 @@ local function startUpdateCheck(manual)
   if not updateManual then
     local cache = updateCacheRead()
     local lastCheck = tonumber(cache.lastCheck) or 0
-    if os.time() - lastCheck < UPDATE_THROTTLE_SEC then
+    if os.time() - lastCheck &lt; UPDATE_THROTTLE_SEC then
       if type(cache.knownLatest) == "string"
          and updateVersionNewer(cache.knownLatest, PLUGIN_VERSION) then
         updateNotify(cache.knownLatest)
