@@ -21,7 +21,41 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.3"
+local PLUGIN_VERSION = "1.6.4"
+local PLUGIN_BUILD   = "25-08-2026"
+
+-- ---------- Wyjscie (kolory cecho, 1:1 z ishtar/imperium) ----------
+local C_HEADER = "&lt;yellow&gt;"
+local C_STAR   = "&lt;cyan&gt;"
+local C_NOW    = "&lt;green&gt;"
+local C_DATA   = "&lt;white&gt;"
+local C_SEP    = "&lt;cyan&gt;"
+local C_RESET  = "&lt;reset&gt;"
+
+local function colorForLine(l)
+  if l == "" then return C_RESET end
+  if l:find("TRWA TERAZ", 1, true) or l:find("+++", 1, true) then return C_NOW end
+  if l:find("***", 1, true) then return C_STAR end
+  if l:sub(1, 1) ~= " " and l:sub(-1) == ":" then return C_HEADER end
+  return C_DATA
+end
+
+local function safeCecho(s)
+  if cecho then cecho(s) else io.write((s:gsub("&lt;%a+&gt;", ""))) end
+end
+
+local function printFramedReport(lines)
+  safeCecho("\n\n" .. C_SEP .. "---" .. C_RESET .. "\n")
+  for _, l in ipairs(lines) do
+    safeCecho(colorForLine(l) .. l .. C_RESET .. "\n")
+  end
+  safeCecho(C_SEP .. "---" .. C_RESET .. "\n\n")
+end
+
+-- globalne: alias reset to osobny chunk, lokalne nie przechodza miedzy chunkami
+function pk.say(msg)
+  safeCecho("\n" .. C_HEADER .. "[pasek_kalendarz] " .. msg .. C_RESET .. "\n")
+end
 
 -- ---------- KONFIGURACJA ----------
 pk.cfg = pk.cfg or {
@@ -446,20 +480,20 @@ function pk.ustaw_recznie(domena_txt, godzina_txt, doy_txt)
   local domena = (lower(domena_txt) == "imperium") and "imperium" or "ishtar"
   local godzina = tonumber(godzina_txt)
   if not godzina or godzina &lt; 0 or godzina &gt; 23 then
-    echo("\n(pasek) Godzina musi byc w zakresie 0-23.\n")
+    pk.say("Godzina musi byc w zakresie 0-23.")
     return
   end
   local _, doy_akt = pk.aktualny_czas(domena)
   local doy = tonumber(doy_txt) or doy_akt or 1
   if doy &lt; 1 or doy &gt; pk.dlugosc_roku(domena) then
-    echo(string.format("\n(pasek) Dzien roku musi byc w zakresie 1-%d.\n", pk.dlugosc_roku(domena)))
+    pk.say(string.format("Dzien roku musi byc w zakresie 1-%d.", pk.dlugosc_roku(domena)))
     return
   end
   pk.kotwice[domena] = { doy = doy, hour = godzina, minute = 0, precision = 0, ts = os.time() }
   pk.zapisz_kotwice()
   pk.stan.domena = domena
   pk.render()
-  echo(string.format("\n(pasek) Ustawiono czas %s: %02d:00, dzien %d.\n",
+  pk.say(string.format("Ustawiono czas %s: %02d:00, dzien %d.",
     domena == "imperium" and "Imperium" or "Ishtar", godzina, doy))
 end
 
@@ -494,38 +528,38 @@ end
 
 function pk.komenda_pozycja(xs, ys)
   local x, y = tonumber(xs), tonumber(ys)
-  if not x or not y then echo("\n(pasek) Uzycie: /pasek pozycja X Y\n") return end
+  if not x or not y then pk.say("Uzycie: /pasek pozycja X Y") return end
   pk.cfg.x, pk.cfg.y = math.floor(x), math.floor(y)
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
-  echo(string.format("\n(pasek) Pozycja ustawiona: %d, %d.\n", pk.cfg.x, pk.cfg.y))
+  pk.say(string.format("Pozycja ustawiona: %d, %d.", pk.cfg.x, pk.cfg.y))
 end
 
 function pk.komenda_tlo(rs, gs, bs, as)
   local k = parse_rgb(rs, gs, bs, as, 210)
-  if not k then echo("\n(pasek) Uzycie: /pasek tlo R G B [A], wartosci 0-255\n") return end
+  if not k then pk.say("Uzycie: /pasek tlo R G B [A], wartosci 0-255") return end
   pk.cfg.kolor_tla = k
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
-  echo(string.format("\n(pasek) Tlo paska: %d %d %d %d.\n", k[1], k[2], k[3], k[4]))
+  pk.say(string.format("Tlo paska: %d %d %d %d.", k[1], k[2], k[3], k[4]))
 end
 
 function pk.komenda_tekst(rs, gs, bs)
   local k = parse_rgb(rs, gs, bs, nil, 255)
-  if not k then echo("\n(pasek) Uzycie: /pasek tekst R G B, wartosci 0-255\n") return end
+  if not k then pk.say("Uzycie: /pasek tekst R G B, wartosci 0-255") return end
   pk.cfg.kolor_tekstu = {k[1], k[2], k[3]}
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
-  echo(string.format("\n(pasek) Kolor tekstu: %d %d %d.\n", k[1], k[2], k[3]))
+  pk.say(string.format("Kolor tekstu: %d %d %d.", k[1], k[2], k[3]))
 end
 
 function pk.komenda_ciemno(rs, gs, bs, as)
   local k = parse_rgb(rs, gs, bs, as, 230)
-  if not k then echo("\n(pasek) Uzycie: /pasek ciemno R G B [A], wartosci 0-255\n") return end
+  if not k then pk.say("Uzycie: /pasek ciemno R G B [A], wartosci 0-255") return end
   pk.cfg.kolor_ciemno = k
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
-  echo(string.format("\n(pasek) Tlo CIEMNO: %d %d %d %d.\n", k[1], k[2], k[3], k[4]))
+  pk.say(string.format("Tlo CIEMNO: %d %d %d %d.", k[1], k[2], k[3], k[4]))
 end
 
 function pk.komenda_domyslne()
@@ -536,24 +570,27 @@ function pk.komenda_domyslne()
   pk.cfg.kolor_ciemno = {unpack(pk.FABRYCZNE.kolor_ciemno)}
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
-  echo("\n(pasek) Przywrocono ustawienia fabryczne.\n")
+  pk.say("Przywrocono ustawienia fabryczne.")
 end
 
 function pk.komenda_pomoc()
-  echo("(pasek v" .. PLUGIN_VERSION .. ") Komendy:\n" .. [[
-  /pasek                        - synchronizacja zegara (wysyla czas)
-  /pasek pozycja X Y            - przesuniecie paska (pigulka CIEMNO podaza za paskiem)
-  /pasek wartosci               - aktualne wartosci: pozycja i kolory (z fabrycznymi)
-  /pasek tlo R G B [A]          - tlo paska, np.: /pasek tlo 0 0 0 180
-  /pasek tekst R G B            - kolor tekstu paska, np.: /pasek tekst 255 255 0
-  /pasek ciemno R G B [A]       - tlo pigulki CIEMNO, np.: /pasek ciemno 60 20 20 230
-  /pasek domyslne               - powrot do ustawien fabrycznych
-  /pasek ustaw imperium 8 273   - reczne ustawienie zegara (domena, godzina 0-23, dzien roku)
-  /pasek reset                  - czysci zapisane kotwice czasu
-  /pasek aktualizuj             - sprawdz i zainstaluj aktualizacje
-  Kolory: R G B A w zakresie 0-255 (A = przezroczystosc, opcjonalne).
-  Ustawienia zapisuja sie na dysku i przechodza przez restart klienta.
-]])
+  printFramedReport({
+    "Pasek kalendarza  (v" .. PLUGIN_VERSION .. " | " .. PLUGIN_BUILD .. ")",
+    "",
+    "Komendy:",
+    "  /pasek                        - synchronizacja zegara (wysyla czas)",
+    "  /pasek pozycja X Y            - przesuniecie paska (pigulka CIEMNO podaza za paskiem)",
+    "  /pasek wartosci               - aktualne wartosci: pozycja i kolory (z fabrycznymi)",
+    "  /pasek tlo R G B [A]          - tlo paska, np.: /pasek tlo 0 0 0 180",
+    "  /pasek tekst R G B            - kolor tekstu paska, np.: /pasek tekst 255 255 0",
+    "  /pasek ciemno R G B [A]       - tlo pigulki CIEMNO, np.: /pasek ciemno 60 20 20 230",
+    "  /pasek domyslne               - powrot do ustawien fabrycznych",
+    "  /pasek ustaw imperium 8 273   - reczne ustawienie zegara (domena, godzina 0-23, dzien roku)",
+    "  /pasek reset                  - czysci zapisane kotwice czasu",
+    "  /pasek aktualizuj             - sprawdz i zainstaluj aktualizacje",
+    "  Kolory: R G B A w zakresie 0-255 (A = przezroczystosc, opcjonalne).",
+    "  Ustawienia zapisuja sie na dysku i przechodza przez restart klienta.",
+  })
 end
 
 -- ---------- GMCP ----------
@@ -637,11 +674,14 @@ end
 
 function pk.komenda_wartosci()
   local c, f = pk.cfg, pk.FABRYCZNE
-  echo("\n(pasek v" .. PLUGIN_VERSION .. ") Aktualne wartosci (w nawiasach fabryczne):\n" ..
-    string.format("  pozycja: x=%d y=%d  (x=%d y=%d)\n", c.x, c.y, f.x, f.y) ..
-    "  tlo:     " .. fmt_rgb(c.kolor_tla) .. "  (" .. fmt_rgb(f.kolor_tla) .. ")\n" ..
-    "  tekst:   " .. fmt_rgb(c.kolor_tekstu) .. "  (" .. fmt_rgb(f.kolor_tekstu) .. ")\n" ..
-    "  ciemno:  " .. fmt_rgb(c.kolor_ciemno) .. "  (" .. fmt_rgb(f.kolor_ciemno) .. ")\n")
+  printFramedReport({
+    "Pasek kalendarza  (v" .. PLUGIN_VERSION .. " | " .. PLUGIN_BUILD .. ")",
+    "Aktualne wartosci (w nawiasach fabryczne):",
+    string.format("  pozycja: x=%d y=%d  (x=%d y=%d)", c.x, c.y, f.x, f.y),
+    "  tlo:     " .. fmt_rgb(c.kolor_tla) .. "  (" .. fmt_rgb(f.kolor_tla) .. ")",
+    "  tekst:   " .. fmt_rgb(c.kolor_tekstu) .. "  (" .. fmt_rgb(f.kolor_tekstu) .. ")",
+    "  ciemno:  " .. fmt_rgb(c.kolor_ciemno) .. "  (" .. fmt_rgb(f.kolor_ciemno) .. ")",
+  })
 end
 
 -- ---------- AUTOAKTUALIZACJA (1.6.0) ----------
@@ -708,12 +748,13 @@ local function updateVersionNewer(a, b)
 end
 
 local function updateSay(msg)
-  echo("\n(pasek) " .. msg .. "\n")
+  pk.say(msg)
 end
 
 local function updateNotify(latest)
-  echo("\n(pasek) Dostepna nowa wersja " .. latest .. " (masz " .. PLUGIN_VERSION ..
-    "). Wpisz " .. UPDATE_CMD .. " aby zaktualizowac.\n")
+  safeCecho("\n" .. C_HEADER .. "[pasek_kalendarz] Dostepna nowa wersja " .. latest ..
+    " (masz " .. PLUGIN_VERSION .. "). Wpisz " .. C_NOW .. UPDATE_CMD ..
+    C_RESET .. C_HEADER .. " aby zaktualizowac." .. C_RESET .. "\n\n")
 end
 
 local function updateFail(what)
@@ -973,7 +1014,7 @@ end</script>
 				<script>pasek_kalendarz.kotwice = { ishtar = nil, imperium = nil }
 os.remove(pasek_kalendarz.sciezka_kotwicy())
 pasek_kalendarz.render()
-echo("\n(pasek) Kotwice czasu wyczyszczone. Wpisz czas, zeby zsynchronizowac.\n")</script>
+pasek_kalendarz.say("Kotwice czasu wyczyszczone. Wpisz czas, zeby zsynchronizowac.")</script>
 				<command></command>
 				<packageName></packageName>
 				<regex>^/pasek reset$</regex>
