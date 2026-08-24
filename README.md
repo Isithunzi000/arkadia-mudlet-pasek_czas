@@ -9,6 +9,7 @@ Pakiet do Mudleta: pasek u góry okna z żywym kalendarzem i zegarem gry dla Ark
 1. Pobierz `.mpackage` albo `.xml` z [najnowszego wydania](https://github.com/Isithunzi000/arkadia-mudlet-pasek_czas/releases/latest) (oba działają tak samo, wybierz który wolisz)
 2. W Mudlecie: **Ustawienia → Menedżer pakietów → Zainstaluj** i wskaż pobrany plik
 3. Gotowe — pasek pojawi się u góry okna; po zalogowaniu wpisz `czas` (albo kliknij pasek), żeby go zsynchronizować
+4. Od wersji 1.6.3 przy każdym załadowaniu pakietu zobaczysz w oknie komunikat `[pasek_kalendarz] Pasek kalendarza v<wersja> zaladowany...` — to potwierdzenie, że pakiet działa (tak samo jak przy kalendarzach Ishtar i Imperium)
 
 Plik [`pasek_kalendarz_arkadia.xml`](pasek_kalendarz_arkadia.xml) w korzeniu repo to źródło pakietu — możesz podejrzeć cały kod bez pobierania.
 
