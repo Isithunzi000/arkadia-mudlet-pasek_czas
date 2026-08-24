@@ -13,6 +13,8 @@ import os
 import re
 import zipfile
 
+from validate_xml import validate_xml_bytes
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XML_NAME = "pasek_kalendarz_arkadia.xml"
 XML_IN_PACKAGE = "pasek_kalendarz_arkadia.xml"
@@ -69,6 +71,7 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(os.path.join(ROOT, XML_NAME), "rb") as f:
         xml_bytes = f.read()
+    validate_xml_bytes(xml_bytes, XML_NAME)
 
     base = ASSET_BASE + "_" + version.replace(".", "_")
     mpackage_path = os.path.join(OUT_DIR, base + ".mpackage")
