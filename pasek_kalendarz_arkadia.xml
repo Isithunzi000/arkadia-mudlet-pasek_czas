@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.4"
+local PLUGIN_VERSION = "1.6.5"
 local PLUGIN_BUILD   = "25-08-2026"
 
 -- ---------- Wyjscie (kolory cecho, 1:1 z ishtar/imperium) ----------
@@ -44,10 +44,12 @@ local function safeCecho(s)
   if cecho then cecho(s) else io.write((s:gsub("&lt;%a+&gt;", ""))) end
 end
 
-local function printFramedReport(lines)
-  safeCecho("\n\n" .. C_SEP .. "---" .. C_RESET .. "\n")
-  for _, l in ipairs(lines) do
-    safeCecho(colorForLine(l) .. l .. C_RESET .. "\n")
+-- wzorzec: onHelp z ishtar/imperium - linia 1 (tytul) zawsze C_HEADER
+local function printTitledReport(lines, leadIn)
+  safeCecho(leadIn .. C_SEP .. "---" .. C_RESET .. "\n")
+  for i, l in ipairs(lines) do
+    local col = (i == 1) and C_HEADER or colorForLine(l)
+    safeCecho(col .. l .. C_RESET .. "\n")
   end
   safeCecho(C_SEP .. "---" .. C_RESET .. "\n\n")
 end
@@ -574,7 +576,7 @@ function pk.komenda_domyslne()
 end
 
 function pk.komenda_pomoc()
-  printFramedReport({
+  printTitledReport({
     "Pasek kalendarza  (v" .. PLUGIN_VERSION .. " | " .. PLUGIN_BUILD .. ")",
     "",
     "Komendy:",
@@ -590,7 +592,7 @@ function pk.komenda_pomoc()
     "  /pasek aktualizuj             - sprawdz i zainstaluj aktualizacje",
     "  Kolory: R G B A w zakresie 0-255 (A = przezroczystosc, opcjonalne).",
     "  Ustawienia zapisuja sie na dysku i przechodza przez restart klienta.",
-  })
+  }, "\n")
 end
 
 -- ---------- GMCP ----------
@@ -674,14 +676,14 @@ end
 
 function pk.komenda_wartosci()
   local c, f = pk.cfg, pk.FABRYCZNE
-  printFramedReport({
+  printTitledReport({
     "Pasek kalendarza  (v" .. PLUGIN_VERSION .. " | " .. PLUGIN_BUILD .. ")",
     "Aktualne wartosci (w nawiasach fabryczne):",
     string.format("  pozycja: x=%d y=%d  (x=%d y=%d)", c.x, c.y, f.x, f.y),
     "  tlo:     " .. fmt_rgb(c.kolor_tla) .. "  (" .. fmt_rgb(f.kolor_tla) .. ")",
     "  tekst:   " .. fmt_rgb(c.kolor_tekstu) .. "  (" .. fmt_rgb(f.kolor_tekstu) .. ")",
     "  ciemno:  " .. fmt_rgb(c.kolor_ciemno) .. "  (" .. fmt_rgb(f.kolor_ciemno) .. ")",
-  })
+  }, "\n\n")
 end
 
 -- ---------- AUTOAKTUALIZACJA (1.6.0) ----------
