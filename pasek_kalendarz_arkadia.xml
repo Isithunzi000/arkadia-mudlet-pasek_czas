@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.5"
+local PLUGIN_VERSION = "1.6.6"
 local PLUGIN_BUILD   = "25-08-2026"
 
 -- ---------- Wyjscie (kolory cecho, 1:1 z ishtar/imperium) ----------
@@ -324,11 +324,13 @@ function pk.sciezka_kotwicy()
 end
 
 function pk.zapisz_kotwice()
-  table.save(pk.sciezka_kotwicy(), { kotwice = pk.kotwice, cfg = {
-    x = pk.cfg.x, y = pk.cfg.y,
-    kolor_tla = pk.cfg.kolor_tla, kolor_tekstu = pk.cfg.kolor_tekstu,
-    kolor_ciemno = pk.cfg.kolor_ciemno,
-  } })
+  pcall(function()
+    table.save(pk.sciezka_kotwicy(), { kotwice = pk.kotwice, cfg = {
+      x = pk.cfg.x, y = pk.cfg.y,
+      kolor_tla = pk.cfg.kolor_tla, kolor_tekstu = pk.cfg.kolor_tekstu,
+      kolor_ciemno = pk.cfg.kolor_ciemno,
+    } })
+  end)
 end
 
 function pk.wczytaj_kotwice()
@@ -791,7 +793,7 @@ local function updateOnPkgDone(event, path)
   end
   tempTimer(1, function()
     installPackage(path)
-    os.remove(path)
+    local ok = os.remove(path)
     updateSay("Zaktualizowano do wersji " .. v .. ". Zrestartuj Mudleta, aby zmiany zadzialaly.")
   end)
 end
@@ -1013,10 +1015,14 @@ end</script>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_reset</name>
-				<script>pasek_kalendarz.kotwice = { ishtar = nil, imperium = nil }
-os.remove(pasek_kalendarz.sciezka_kotwicy())
-pasek_kalendarz.render()
-pasek_kalendarz.say("Kotwice czasu wyczyszczone. Wpisz czas, zeby zsynchronizowac.")</script>
+				<script>local ok = os.remove(pasek_kalendarz.sciezka_kotwicy())
+if ok then
+  pasek_kalendarz.kotwice = { ishtar = nil, imperium = nil }
+  pasek_kalendarz.render()
+  pasek_kalendarz.say("Kotwice czasu wyczyszczone. Wpisz czas, zeby zsynchronizowac.")
+else
+  pasek_kalendarz.say("Nie udalo sie usunac pliku kotwic - sprawdz uprawnienia katalogu profilu")
+end</script>
 				<command></command>
 				<packageName></packageName>
 				<regex>^/pasek reset$</regex>
