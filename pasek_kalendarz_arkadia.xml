@@ -21,8 +21,8 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.6"
-local PLUGIN_BUILD   = "25-08-2026"
+local PLUGIN_VERSION = "1.6.7"
+local PLUGIN_BUILD   = "26-08-2026"
 
 -- ---------- Wyjscie (kolory cecho, 1:1 z ishtar/imperium) ----------
 local C_HEADER = "&lt;yellow&gt;"
