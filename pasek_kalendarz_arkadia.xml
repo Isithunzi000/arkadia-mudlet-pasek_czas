@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.12"
+local PLUGIN_VERSION = "1.6.13"
 local PLUGIN_BUILD   = "27-08-2026"
 
 -- ---------- Wyjscie (kolory cecho, 1:1 z ishtar/imperium) ----------
@@ -1018,22 +1018,23 @@ function pk.paleta_odswiez()
     tekst = "Kolor: tekst paska",
   }
   pk.paleta_tytul:echo(tytuly[pk.paleta.cel] or "Kolor")
+  -- 1.6.12/1.6.13: kontrastowy kolor kodow liczbowych. setFgColor MUSI byc
+  -- PRZED echem podgladu - echo renderuje biezacym fg, inaczej kontrast
+  -- opoznia sie o jedno odswiezenie (wzorzec jak kolor_tekstu glownego
+  -- labela: setFgColor w zastosuj_wyglad, echo pozniej w render)
+  local a = paleta_ma_alfa() and pk.paleta.alfa or 255
+  pk.paleta_podglad:setColor(r, g, b, a)
+  setFgColor(pk.paleta_podglad.name, pk.paleta_kontrast(r, g, b, a))
   if paleta_ma_alfa() then
     if pk.paleta_suwak.setStyleSheet then
       pk.paleta_suwak:setStyleSheet(string.format(
         "background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(%d,%d,%d,0), stop:1 rgba(%d,%d,%d,255));",
         r, g, b, r, g, b))
     end
-    pk.paleta_podglad:setColor(r, g, b, pk.paleta.alfa)
     pk.paleta_podglad:echo(string.format("&lt;center&gt;%d %d %d %d", r, g, b, pk.paleta.alfa))
   else
-    pk.paleta_podglad:setColor(r, g, b, 255)
     pk.paleta_podglad:echo(string.format("&lt;center&gt;%d %d %d", r, g, b))
   end
-  -- 1.6.12: kontrastowy kolor kodow liczbowych (wzorzec jak kolor_tekstu
-  -- glownego labela: setFgColor przed kolejnym echem)
-  setFgColor(pk.paleta_podglad.name, pk.paleta_kontrast(r, g, b,
-    paleta_ma_alfa() and pk.paleta.alfa or 255))
 end
 
 -- pokazuje/ukrywa wszystkie widgety panelu na pozycji liczonej przy otwarciu
