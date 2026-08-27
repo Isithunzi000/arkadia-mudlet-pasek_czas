@@ -70,6 +70,7 @@ pk.cfg = pk.cfg or {
   kolor_ciemno = {60, 20, 20, 230},  -- tlo pigulki CIEMNO (RGBA)
   pokazuj_precyzje = true,           -- "HH:MM ±N" gdy zegar jest czesciowo pewny (1-59)
   wlaczony = true,                   -- /pasek on|off (pokaz/schowaj pasek)
+  window = false,                    -- /pasek window [on|off] (pasek w osobnym oknie)
 }
 
 -- wartosci fabryczne (dla komendy "/pasek domyslne")
@@ -331,6 +332,7 @@ function pk.zapisz_kotwice()
       kolor_tla = pk.cfg.kolor_tla, kolor_tekstu = pk.cfg.kolor_tekstu,
       kolor_ciemno = pk.cfg.kolor_ciemno,
       wlaczony = pk.cfg.wlaczony,
+      window = pk.cfg.window,
     } })
   end)
 end
@@ -351,7 +353,7 @@ function pk.wczytaj_kotwice()
   end
   -- zapisana konfiguracja wygladu/pozycji (komendy "/pasek ...")
   if type(wynik.cfg) == "table" then
-    for _, klucz in ipairs({"x", "y", "kolor_tla", "kolor_tekstu", "kolor_ciemno", "wlaczony"}) do
+    for _, klucz in ipairs({"x", "y", "kolor_tla", "kolor_tekstu", "kolor_ciemno", "wlaczony", "window"}) do
       if wynik.cfg[klucz] ~= nil then pk.cfg[klucz] = wynik.cfg[klucz] end
     end
   end
@@ -508,18 +510,25 @@ local function tohex(k) return string.format("#%02x%02x%02x", k[1], k[2], k[3]) 
 
 -- Aplikuje cfg na istniejace labele (pozycja + kolory + odswiezenie)
 function pk.zastosuj_wyglad()
+  -- baza pozycji: inline z cfg; w trybie okna etykiety wzgledem okna (0,0)
+  local bx, by = pk.cfg.x, pk.cfg.y
+  if pk.win_container then bx, by = 0, 0 end
   if pk.label then
     pk.label:setColor(unpack(pk.cfg.kolor_tla))
     pk.label.fgColor = tohex(pk.cfg.kolor_tekstu)
     setFgColor(pk.label.name, unpack(pk.cfg.kolor_tekstu))
-    pk.label:move(pk.cfg.x, pk.cfg.y)
+    pk.label:move(bx, by)
     -- widocznosc z cfg (/pasek on|off): egzekwowana przy kazdej zmianie wygladu
     if pk.cfg.wlaczony == false then pk.label:hide() else pk.label:show() end
   end
   if pk.ciemno_label then
     pk.ciemno_label:setColor(unpack(pk.cfg.kolor_ciemno))
-    pk.ciemno_label:move(pk.cfg.x + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
-                         pk.cfg.y + pk.cfg.height + pk.cfg.ciemno_odstep)
+    pk.ciemno_label:move(bx + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
+                         by + pk.cfg.height + pk.cfg.ciemno_odstep)
+  end
+  -- osobne okno podaza za widocznoscia paska (/pasek on|off)
+  if pk.win_container then
+    if pk.cfg.wlaczony == false then pk.win_container:hide() else pk.win_container:show() end
   end
   pk.render()
 end
@@ -654,6 +663,126 @@ function pk.komenda_float(arg)
   end
 end
 
+-- ---------- WINDOW: pasek w osobnym plywajacym oknie (userwindow) ----------
+pk.window_name = "pasek_kalendarz_okno"
+pk.win_container = nil    -- Geyser.UserWindow, gdy aktywny tryb okna
+pk.win_last_h = nil       -- ostatnia zaaplikowana wysokosc okna (resize tylko przy zmianie)
+pk.float_suspended = nil  -- float uspiony na czas trybu okna
+
+-- userwindow wymaga wsparcia klienta (mudlet-web go nie ma)
+function pk.window_dostepne()
+  return type(openUserWindow) == "function"
+     and type(Geyser) == "table" and type(Geyser.UserWindow) == "table"
+end
+
+-- wysokosc okna: sam pasek, a przy widocznym CIEMNO + odstep i pigulka
+function pk.window_wysokosc()
+  local h = pk.cfg.height
+  if pk.stan.ciemno then h = h + pk.cfg.ciemno_odstep + pk.cfg.ciemno_height end
+  return h
+end
+
+-- Dynamiczny resize okna przy zmianie stanu CIEMNO (bez spamu co tick).
+function pk.window_resize()
+  if not (pk.cfg.window == true and pk.win_container) then return end
+  local h = pk.window_wysokosc()
+  if pk.win_last_h ~= h then
+    resizeUserWindow(pk.window_name, pk.cfg.width, h)
+    pk.win_last_h = h
+  end
+end
+
+-- Buduje labele paska: inline w glownym oknie albo w osobnym userwindow.
+function pk.buduj_labele()
+  if pk.label then pk.label:hide() end
+  if pk.ciemno_label then pk.ciemno_label:hide() end
+  pk.win_container = nil
+  pk.win_last_h = nil
+  if pk.cfg.window == true and pk.window_dostepne() then
+    pk.win_last_h = pk.window_wysokosc()
+    pk.win_container = Geyser.UserWindow:new({
+      name = pk.window_name,
+      x = 0, y = 0,
+      width = pk.cfg.width, height = pk.win_last_h,
+    })
+    if type(setUserWindowTitle) == "function" then
+      setUserWindowTitle(pk.window_name, "Pasek kalendarza - Arkadia")
+    end
+  end
+  -- w trybie okna etykiety pozycjonowane wzgledem okna (0,0)
+  local bx, by = pk.cfg.x, pk.cfg.y
+  if pk.win_container then bx, by = 0, 0 end
+  pk.label = Geyser.Label:new({
+    name = "pasek_kalendarz_label",
+    x = bx, y = by,
+    width = pk.cfg.width, height = pk.cfg.height,
+    fgColor = "white",
+    message = "",
+    container = pk.win_container,
+  })
+  pk.label:setColor(unpack(pk.cfg.kolor_tla))
+  pk.label:setFontSize(pk.cfg.fontSize)
+  pk.label:setClickCallback(function(ev) pk.float_on_click(ev) end)
+  pk.label:setMoveCallback(function(ev) pk.float_on_move(ev) end)
+  pk.label:setReleaseCallback(function(ev) pk.float_on_release(ev) end)
+
+  -- pigulka CIEMNO: osobny label pod paskiem, wysrodkowany wzgledem niego
+  pk.ciemno_label = Geyser.Label:new({
+    name = "pasek_kalendarz_ciemno",
+    x = bx + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
+    y = by + pk.cfg.height + pk.cfg.ciemno_odstep,
+    width = pk.cfg.ciemno_width, height = pk.cfg.ciemno_height,
+    fgColor = "white",
+    message = "&lt;center&gt;◆ CIEMNO",
+    container = pk.win_container,
+  })
+  pk.ciemno_label:setColor(unpack(pk.cfg.kolor_ciemno))
+  pk.ciemno_label:setFontSize(math.max(8, pk.cfg.fontSize - 2))
+  pk.ciemno_label:hide()
+
+  -- zastosuj zapisany wyglad (pozycja/kolory tekstu) i odswiez
+  pk.zastosuj_wyglad()
+end
+
+function pk.komenda_window(arg)
+  if arg == nil or arg == "on" then
+    if not pk.window_dostepne() then
+      pk.say("Tryb osobnego okna niedostepny w tym kliencie.")
+      return
+    end
+    if pk.cfg.window ~= true then
+      -- kolizja: float usypiany na czas trybu okna (flaga zapamietana)
+      pk.float_suspended = pk.float_on
+      if pk.float_on then
+        pk.float_on = false
+        pk.float_drag = nil
+        if pk.float_timer then pcall(killTimer, pk.float_timer) pk.float_timer = nil end
+      end
+      pk.cfg.window = true
+      pk.zapisz_kotwice()
+      pk.buduj_labele()
+    end
+    pk.say("Pasek przeniesiony do osobnego okna (powrot: /pasek window off).")
+  elseif arg == "off" then
+    if pk.cfg.window == true then
+      pk.cfg.window = false
+      pk.zapisz_kotwice()
+      pk.buduj_labele()
+      if type(closeUserWindow) == "function" then closeUserWindow(pk.window_name) end
+      -- float wspomniany przy wejsciu w okno wraca (swieze 60 s)
+      if pk.float_suspended then
+        pk.float_on = true
+        pk.float_arm()
+        if pk.label and pk.label.raise then pk.label:raise() end
+      end
+      pk.float_suspended = nil
+    end
+    pk.say("Pasek wrocil do glownego okna.")
+  else
+    pk.say("Uzycie: /pasek window [on|off]")
+  end
+end
+
 function pk.komenda_tlo(rs, gs, bs, as)
   local k = parse_rgb(rs, gs, bs, as, 210)
   if not k then pk.say("Uzycie: /pasek tlo R G B [A], wartosci 0-255") return end
@@ -784,6 +913,9 @@ function pk.render()
   if pk.ciemno_label then
     if pk.stan.ciemno and pk.cfg.wlaczony ~= false then pk.ciemno_label:show() else pk.ciemno_label:hide() end
   end
+
+  -- dynamiczny resize osobnego okna przy zmianie CIEMNO (tylko przy zmianie)
+  pk.window_resize()
 end
 
 -- ---------- KOMENDA WARTOSCI (1.6.0) ----------
@@ -1015,36 +1147,8 @@ local pk = pasek_kalendarz
 -- najpierw zapisana konfiguracja (kotwice + wyglad z komend "/pasek ...")
 pk.wczytaj_kotwice()
 
-if pk.label then pk.label:hide() end
-pk.label = Geyser.Label:new({
-  name = "pasek_kalendarz_label",
-  x = pk.cfg.x, y = pk.cfg.y,
-  width = pk.cfg.width, height = pk.cfg.height,
-  fgColor = "white",
-  message = "",
-})
-pk.label:setColor(unpack(pk.cfg.kolor_tla))
-pk.label:setFontSize(pk.cfg.fontSize)
-pk.label:setClickCallback(function(ev) pk.float_on_click(ev) end)
-pk.label:setMoveCallback(function(ev) pk.float_on_move(ev) end)
-pk.label:setReleaseCallback(function(ev) pk.float_on_release(ev) end)
-
--- pigulka CIEMNO: osobny label pod paskiem, wysrodkowany wzgledem niego
-if pk.ciemno_label then pk.ciemno_label:hide() end
-pk.ciemno_label = Geyser.Label:new({
-  name = "pasek_kalendarz_ciemno",
-  x = pk.cfg.x + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
-  y = pk.cfg.y + pk.cfg.height + pk.cfg.ciemno_odstep,
-  width = pk.cfg.ciemno_width, height = pk.cfg.ciemno_height,
-  fgColor = "white",
-  message = "&lt;center&gt;◆ CIEMNO",
-})
-pk.ciemno_label:setColor(unpack(pk.cfg.kolor_ciemno))
-pk.ciemno_label:setFontSize(math.max(8, pk.cfg.fontSize - 2))
-pk.ciemno_label:hide()
-
--- zastosuj zapisany wyglad (pozycja/kolory tekstu) i odswiez
-pk.zastosuj_wyglad()</script>
+-- budowa labeli: inline w glownym oknie albo w osobnym oknie (/pasek window)
+pk.buduj_labele()</script>
 				<eventHandlerList>
 				</eventHandlerList>
 			</Script>
@@ -1178,6 +1282,20 @@ end</script>
 				<command></command>
 				<packageName></packageName>
 				<regex>^/pasek float (.+)$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_window</name>
+				<script>pasek_kalendarz.komenda_window()</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek window$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_window_arg</name>
+				<script>pasek_kalendarz.komenda_window(matches[2])</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek window (.+)$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_pomoc</name>
