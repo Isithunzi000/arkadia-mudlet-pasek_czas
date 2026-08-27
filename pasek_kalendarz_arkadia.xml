@@ -557,6 +557,103 @@ function pk.komenda_off()
   pk.say("Pasek wylaczony.")
 end
 
+-- ---------- FLOAT: przenoszenie paska mysza (sesyjne, auto-blokada 60 s) ----------
+pk.float_on = false       -- tryb przenoszenia (celowo nie persystowany)
+pk.float_drag = nil       -- aktywny chwyt { dx, dy, moved }
+pk.float_timer = nil      -- id tempTimer auto-blokady
+
+local FLOAT_AUTOLOCK_S = 60
+
+-- Clamp pozycji do glownego okna (pasek + pigulka CIEMNO musza sie zmiescic).
+function pk.clamp_xy(x, y)
+  local winW, winH = 1024, 768
+  if type(getMainWindowSize) == "function" then
+    local w, h = getMainWindowSize()
+    winW, winH = tonumber(w) or winW, tonumber(h) or winH
+  end
+  local maxX = math.max(0, winW - pk.cfg.width)
+  local maxY = math.max(0, winH - pk.cfg.height - pk.cfg.ciemno_odstep - pk.cfg.ciemno_height)
+  return math.max(0, math.min(x, maxX)), math.max(0, math.min(y, maxY))
+end
+
+-- Auto-blokada: 60 s od ostatniego przeciagniecia; timer wypadniety w trakcie
+-- draga odklada sie do release (re-arm), nigdy nie odcina w locie.
+function pk.float_arm()
+  if pk.float_timer then pcall(killTimer, pk.float_timer) end
+  pk.float_timer = tempTimer(FLOAT_AUTOLOCK_S, function()
+    if pk.float_drag then
+      pk.float_arm()
+    else
+      pk.float_on = false
+      pk.float_timer = nil
+      pk.say("Przenoszenie wygaslo (60 s bez przenoszenia) - pasek zablokowany.")
+    end
+  end)
+end
+
+local function float_move_pill()
+  if pk.ciemno_label then
+    pk.ciemno_label:move(pk.cfg.x + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
+                         pk.cfg.y + pk.cfg.height + pk.cfg.ciemno_odstep)
+  end
+end
+
+-- Klik poza trybem float = synchronizacja (jak dotad); w trybie float klik
+-- rozpoczyna chwyt, a synchronizacja odpala sie dopiero na czystym release.
+function pk.float_on_click(ev)
+  if not pk.float_on then send("czas") return end
+  ev = ev or {}
+  pk.float_drag = { dx = tonumber(ev.x) or 0, dy = tonumber(ev.y) or 0, moved = false }
+end
+
+function pk.float_on_move(ev)
+  local d = pk.float_drag
+  if not (pk.float_on and d and pk.label) then return end
+  ev = ev or {}
+  local ex, ey = tonumber(ev.x) or d.dx, tonumber(ev.y) or d.dy
+  local nx, ny = pk.clamp_xy(pk.cfg.x + (ex - d.dx), pk.cfg.y + (ey - d.dy))
+  if nx ~= pk.cfg.x or ny ~= pk.cfg.y then
+    if not d.moved and math.abs(ex - d.dx) + math.abs(ey - d.dy) &gt; 1 then
+      d.moved = true
+    end
+    pk.cfg.x, pk.cfg.y = nx, ny
+    pk.label:move(nx, ny)
+    float_move_pill()
+  end
+end
+
+function pk.float_on_release()
+  local d = pk.float_drag
+  pk.float_drag = nil
+  if not (pk.float_on and d) then return end
+  if d.moved then
+    pk.zapisz_kotwice()
+    pk.float_arm()
+  else
+    send("czas")
+  end
+end
+
+function pk.komenda_float(arg)
+  if arg == nil or arg == "on" then
+    if pk.cfg.wlaczony == false then
+      pk.say("Pasek jest wylaczony - najpierw /pasek on.")
+      return
+    end
+    pk.float_on = true
+    pk.float_arm()
+    if pk.label and pk.label.raise then pk.label:raise() end
+    pk.say("Przenoszenie mysza wlaczone na 60 s - przeciagnij pasek.")
+  elseif arg == "off" then
+    pk.float_on = false
+    pk.float_drag = nil
+    if pk.float_timer then pcall(killTimer, pk.float_timer) pk.float_timer = nil end
+    pk.say("Przenoszenie mysza wylaczone.")
+  else
+    pk.say("Uzycie: /pasek float [on|off]")
+  end
+end
+
 function pk.komenda_tlo(rs, gs, bs, as)
   local k = parse_rgb(rs, gs, bs, as, 210)
   if not k then pk.say("Uzycie: /pasek tlo R G B [A], wartosci 0-255") return end
@@ -928,7 +1025,9 @@ pk.label = Geyser.Label:new({
 })
 pk.label:setColor(unpack(pk.cfg.kolor_tla))
 pk.label:setFontSize(pk.cfg.fontSize)
-pk.label:setClickCallback(function() send("czas") end)
+pk.label:setClickCallback(function(ev) pk.float_on_click(ev) end)
+pk.label:setMoveCallback(function(ev) pk.float_on_move(ev) end)
+pk.label:setReleaseCallback(function(ev) pk.float_on_release(ev) end)
 
 -- pigulka CIEMNO: osobny label pod paskiem, wysrodkowany wzgledem niego
 if pk.ciemno_label then pk.ciemno_label:hide() end
@@ -1065,6 +1164,20 @@ end</script>
 				<command></command>
 				<packageName></packageName>
 				<regex>^/pasek off$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_float</name>
+				<script>pasek_kalendarz.komenda_float()</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek float$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_float_arg</name>
+				<script>pasek_kalendarz.komenda_float(matches[2])</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek float (.+)$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_pomoc</name>
