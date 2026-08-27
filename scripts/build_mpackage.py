@@ -27,7 +27,7 @@ DESCRIPTION = ("Zyjacy pasek kalendarza: zegar gry, data Ishtar/Imperium, "
                "/pasek) oraz pasywnie z GMCP; rekalibracja na wschodzie/zachodzie "
                "slonca. Plugin nigdy nie wysyla komend samodzielnie (pkt 2 Zasad "
                "Arkadii). Autoaktualizacja z GitHub Releases. Komendy: /pasek "
-               "pomoc (pozycja, kolory, wartosci, aktualizuj). "
+               "pomoc (pozycja, kolory, wartosci, on/off, float, window, aktualizuj). "
                "Wtyczka do gry Arkadia MUD (arkadia.rpg.pl) / "
                "Plugin for Arkadia MUD (arkadia.rpg.pl).")
 OUT_DIR = os.path.join(ROOT, "dist")

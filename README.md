@@ -1,6 +1,6 @@
 # Pasek kalendarza Arkadii — Mudlet
 
-Pakiet do Mudleta: pasek u góry okna z żywym kalendarzem i zegarem gry dla Arkadii MUD (domeny Ishtar i Imperium).
+Pakiet do Mudleta: pasek u góry okna z żywym kalendarzem i zegarem gry dla Arkadii MUD (domeny Ishtar i Imperium). Domyślnie pasek stoi u góry okna, ale po `/pasek float` (przenoszenie myszą) lub `/pasek window` (osobne pływające okno) może być gdziekolwiek.
 
 ---
 
@@ -43,6 +43,9 @@ Plik [`pasek_kalendarz_arkadia.xml`](pasek_kalendarz_arkadia.xml) w korzeniu rep
 
 **Wygląd i pozycja** (wszystko zapisuje się na dysku i działa po restarcie):
 
+- `/pasek on` / `/pasek off` — pokazuje / chowa pasek (ustawienia zostają)
+- `/pasek float [on|off]` — przenoszenie paska myszą w obrębie okna Mudleta (auto-blokada po 60 s bez ruchu)
+- `/pasek window [on|off]` — pasek w osobnym pływającym oknie (pozycję okna zapamiętuje Mudlet; pigułka CIEMNO powiększa okno automatycznie)
 - `/pasek pozycja X Y` — przesuwa pasek (pigułka CIEMNO sama podąża za paskiem)
 - `/pasek wartosci` — pokazuje aktualne wartości: pozycję i kolory (w nawiasach fabryczne)
 - `/pasek tlo R G B [A]` — kolor tła paska (opcjonalnie przezroczystość 0–255)
@@ -55,7 +58,7 @@ Plik [`pasek_kalendarz_arkadia.xml`](pasek_kalendarz_arkadia.xml) w korzeniu rep
 
 - `/pasek aktualizuj` — sprawdza i instaluje aktualizację z GitHub Releases
 
-Kolory podaje się jako trzy liczby 0–255 (RGB), np. `/pasek tlo 40 0 60 180`. Kliknięcie paska też wysyła `czas`.
+Kolory podaje się jako `R G B [A]` — każda wartość to liczba 0–255. `R G B` to kanały czerwony, zielony i niebieski; opcjonalne `A` to przezroczystość tła: `0` = niewidzialne, `255` = całkowicie kryjące (im mniej, tym bardziej przezroczyste). Bez `A` tło paska dostaje fabryczne `210`, a pigułka CIEMNO `230`. Przykłady: `/pasek tlo 0 0 0 255` (czarne tło, kryjące), `/pasek tlo 0 0 0 120` (czarne tło, półprzezroczyste), `/pasek tlo 0 0 0 0` (tło niewidzialne, zostaje sam tekst), `/pasek tekst 255 255 0` (żółty tekst). Kliknięcie paska też wysyła `czas`.
 
 ---
 
