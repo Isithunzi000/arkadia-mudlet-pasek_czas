@@ -69,6 +69,7 @@ pk.cfg = pk.cfg or {
   kolor_tekstu = {255, 255, 255},    -- tekst paska (RGB)
   kolor_ciemno = {60, 20, 20, 230},  -- tlo pigulki CIEMNO (RGBA)
   pokazuj_precyzje = true,           -- "HH:MM ±N" gdy zegar jest czesciowo pewny (1-59)
+  wlaczony = true,                   -- /pasek on|off (pokaz/schowaj pasek)
 }
 
 -- wartosci fabryczne (dla komendy "/pasek domyslne")
@@ -329,6 +330,7 @@ function pk.zapisz_kotwice()
       x = pk.cfg.x, y = pk.cfg.y,
       kolor_tla = pk.cfg.kolor_tla, kolor_tekstu = pk.cfg.kolor_tekstu,
       kolor_ciemno = pk.cfg.kolor_ciemno,
+      wlaczony = pk.cfg.wlaczony,
     } })
   end)
 end
@@ -349,7 +351,7 @@ function pk.wczytaj_kotwice()
   end
   -- zapisana konfiguracja wygladu/pozycji (komendy "/pasek ...")
   if type(wynik.cfg) == "table" then
-    for _, klucz in ipairs({"x", "y", "kolor_tla", "kolor_tekstu", "kolor_ciemno"}) do
+    for _, klucz in ipairs({"x", "y", "kolor_tla", "kolor_tekstu", "kolor_ciemno", "wlaczony"}) do
       if wynik.cfg[klucz] ~= nil then pk.cfg[klucz] = wynik.cfg[klucz] end
     end
   end
@@ -511,6 +513,8 @@ function pk.zastosuj_wyglad()
     pk.label.fgColor = tohex(pk.cfg.kolor_tekstu)
     setFgColor(pk.label.name, unpack(pk.cfg.kolor_tekstu))
     pk.label:move(pk.cfg.x, pk.cfg.y)
+    -- widocznosc z cfg (/pasek on|off): egzekwowana przy kazdej zmianie wygladu
+    if pk.cfg.wlaczony == false then pk.label:hide() else pk.label:show() end
   end
   if pk.ciemno_label then
     pk.ciemno_label:setColor(unpack(pk.cfg.kolor_ciemno))
@@ -537,6 +541,20 @@ function pk.komenda_pozycja(xs, ys)
   pk.zapisz_kotwice()
   pk.zastosuj_wyglad()
   pk.say(string.format("Pozycja ustawiona: %d, %d.", pk.cfg.x, pk.cfg.y))
+end
+
+function pk.komenda_on()
+  pk.cfg.wlaczony = true
+  pk.zapisz_kotwice()
+  pk.zastosuj_wyglad()
+  pk.say("Pasek wlaczony.")
+end
+
+function pk.komenda_off()
+  pk.cfg.wlaczony = false
+  pk.zapisz_kotwice()
+  pk.zastosuj_wyglad()
+  pk.say("Pasek wylaczony.")
 end
 
 function pk.komenda_tlo(rs, gs, bs, as)
@@ -667,7 +685,7 @@ function pk.render()
 
   -- pigulka CIEMNO pod paskiem (osobny label, dokladnie na srodku)
   if pk.ciemno_label then
-    if pk.stan.ciemno then pk.ciemno_label:show() else pk.ciemno_label:hide() end
+    if pk.stan.ciemno and pk.cfg.wlaczony ~= false then pk.ciemno_label:show() else pk.ciemno_label:hide() end
   end
 end
 
@@ -1033,6 +1051,20 @@ end</script>
 				<command></command>
 				<packageName></packageName>
 				<regex>^/pasek ustaw (imperium|ishtar) (\d+)(?: (\d+))?$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_on</name>
+				<script>pasek_kalendarz.komenda_on()</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek on$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_off</name>
+				<script>pasek_kalendarz.komenda_off()</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek off$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_pomoc</name>
