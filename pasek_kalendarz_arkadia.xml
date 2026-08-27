@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.10"
+local PLUGIN_VERSION = "1.6.11"
 local PLUGIN_BUILD   = "27-08-2026"
 
 -- ---------- Wyjscie (kolory cecho, 1:1 z ishtar/imperium) ----------
@@ -505,6 +505,31 @@ function pk.ustaw_recznie(domena_txt, godzina_txt, doy_txt)
     domena == "imperium" and "Imperium" or "Ishtar", godzina, doy))
 end
 
+-- ---------- RESET KOTWIC CZASU -------------------------------------------
+-- 1.6.11: reset NIE usuwa pliku kotwic - plik trzyma tez cfg (pozycja,
+-- kolory, wlaczony, window), wiec kotwice czyscimy w RAM i nadpisujemy
+-- plik zapisem; zapisany wyglad zostaje (reset wygladu: /pasek domyslne).
+-- Bez argumentu czysci obie domeny; z domena - tylko wskazana.
+function pk.komenda_reset(arg)
+  if arg == nil then
+    pk.kotwice = { ishtar = nil, imperium = nil }
+    pk.zapisz_kotwice()
+    pk.render()
+    pk.say("Kotwice czasu wyczyszczone dla obu domen. Wpisz czas, zeby zsynchronizowac.")
+  elseif arg == "ishtar" or arg == "imperium" then
+    pk.kotwice[arg] = nil
+    pk.zapisz_kotwice()
+    pk.render()
+    local d = (arg == "imperium") and "Imperium" or "Ishtar"
+    local druga = (arg == "imperium") and "Ishtar" or "Imperium"
+    pk.say(string.format(
+      "Kotwice czasu wyczyszczone dla domeny %s (%s bez zmian). Wpisz czas, zeby zsynchronizowac.",
+      d, druga))
+  else
+    pk.say("Uzycie: /pasek reset [ishtar|imperium]")
+  end
+end
+
 -- ---------- KOMENDY WYGLADU/POZYCJI (zapisywane na dysk) ----------
 local function tohex(k) return string.format("#%02x%02x%02x", k[1], k[2], k[3]) end
 
@@ -612,12 +637,15 @@ end
 -- Klik poza trybem float = synchronizacja (jak dotad); w trybie float klik
 -- rozpoczyna chwyt, a synchronizacja odpala sie dopiero na czystym release.
 function pk.float_on_click(ev)
-  if not pk.float_on then send("czas") return end
+  -- guard obronny (1.6.11): w trybie okna zawsze zwykly klik (inwarjant:
+  -- float_on nigdy nie powinien byc true w oknie)
+  if not pk.float_on or pk.cfg.window == true then send("czas") return end
   ev = ev or {}
   pk.float_drag = { dx = tonumber(ev.x) or 0, dy = tonumber(ev.y) or 0, moved = false }
 end
 
 function pk.float_on_move(ev)
+  if pk.cfg.window == true then return end  -- guard obronny (1.6.11): brak dragowania w oknie
   local d = pk.float_drag
   if not (pk.float_on and d and pk.label) then return end
   ev = ev or {}
@@ -634,6 +662,7 @@ function pk.float_on_move(ev)
 end
 
 function pk.float_on_release()
+  if pk.cfg.window == true then pk.float_drag = nil return end  -- guard obronny (1.6.11)
   local d = pk.float_drag
   pk.float_drag = nil
   if not (pk.float_on and d) then return end
@@ -647,8 +676,26 @@ end
 
 function pk.komenda_float(arg)
   if arg == nil or arg == "on" then
-    if pk.cfg.wlaczony == false then
+    -- guard: uzbrojenie timera wymaga widocznego paska; wyjatkiem jest
+    -- samo /pasek float w trybie okna (tylko zmiana umiejscowienia)
+    if pk.cfg.wlaczony == false and not (arg == nil and pk.cfg.window == true) then
       pk.say("Pasek jest wylaczony - najpierw /pasek on.")
+      return
+    end
+    -- przejscie z trybu okna: samo float = sam powrot do glownego okna,
+    -- float on = powrot + przenoszenie z timerem (1.6.11)
+    if pk.cfg.window == true then
+      pk.cfg.window = false
+      pk.zapisz_kotwice()
+      pk.window_wyjdz()
+      if arg == nil then
+        pk.say("Pasek wrocil do glownego okna.")
+        return
+      end
+      pk.float_on = true
+      pk.float_arm()
+      if pk.label and pk.label.raise then pk.label:raise() end
+      pk.say("Pasek wrocil do glownego okna - przenoszenie mysza wlaczone na 60 s.")
       return
     end
     pk.float_on = true
@@ -656,10 +703,14 @@ function pk.komenda_float(arg)
     if pk.label and pk.label.raise then pk.label:raise() end
     pk.say("Przenoszenie mysza wlaczone na 60 s - przeciagnij pasek.")
   elseif arg == "off" then
-    pk.float_on = false
-    pk.float_drag = nil
-    if pk.float_timer then pcall(killTimer, pk.float_timer) pk.float_timer = nil end
-    pk.say("Przenoszenie mysza wylaczone.")
+    if pk.float_on then
+      pk.float_on = false
+      pk.float_drag = nil
+      if pk.float_timer then pcall(killTimer, pk.float_timer) pk.float_timer = nil end
+      pk.say("Przenoszenie mysza wylaczone.")
+    else
+      pk.say("Przenoszenie mysza juz jest wylaczone.")
+    end
   else
     pk.say("Uzycie: /pasek float [on|off]")
   end
@@ -669,7 +720,8 @@ end
 pk.window_name = "pasek_kalendarz_okno"
 pk.win_container = nil    -- Geyser.UserWindow, gdy aktywny tryb okna
 pk.win_last_h = nil       -- ostatnia zaaplikowana wysokosc okna (resize tylko przy zmianie)
-pk.float_suspended = nil  -- float uspiony na czas trybu okna
+-- 1.6.11: mechanizm float_suspended usuniety - float_on i cfg.window sa
+-- wzajemnie wykluczajacymi sie stanami (inwarjant pilnowany w komendach)
 
 -- userwindow wymaga wsparcia klienta (mudlet-web go nie ma); setWindow
 -- (przepiecie etykiet) jest dostepne od Mudlet 4.8; resizeWindow obsluguje
@@ -776,37 +828,38 @@ function pk.buduj_labele()
 end
 
 function pk.komenda_window(arg)
-  if arg == nil or arg == "on" then
+  -- samo /pasek window = przelacznik: glowne okno &lt;-> osobne okno (1.6.11)
+  if arg == nil then
+    arg = (pk.cfg.window == true) and "off" or "on"
+  end
+  if arg == "on" then
+    if pk.cfg.window == true then
+      pk.say("Pasek juz jest w osobnym oknie.")
+      return
+    end
     if not pk.window_dostepne() then
       pk.say("Tryb osobnego okna niedostepny w tym kliencie.")
       return
     end
-    if pk.cfg.window ~= true then
-      -- kolizja: float usypiany na czas trybu okna (flaga zapamietana)
-      pk.float_suspended = pk.float_on
-      if pk.float_on then
-        pk.float_on = false
-        pk.float_drag = nil
-        if pk.float_timer then pcall(killTimer, pk.float_timer) pk.float_timer = nil end
-      end
-      pk.cfg.window = true
-      pk.zapisz_kotwice()
-      pk.window_wejdz()
+    -- wejscie w okno gasi przenoszenie na stale (bez usypiania - 1.6.11);
+    -- przenoszenie wlacza sie tylko swiadoma komenda w glownym oknie
+    if pk.float_on then
+      pk.float_on = false
+      pk.float_drag = nil
+      if pk.float_timer then pcall(killTimer, pk.float_timer) pk.float_timer = nil end
     end
+    pk.cfg.window = true
+    pk.zapisz_kotwice()
+    pk.window_wejdz()
     pk.say("Pasek przeniesiony do osobnego okna (powrot: /pasek window off).")
   elseif arg == "off" then
-    if pk.cfg.window == true then
-      pk.cfg.window = false
-      pk.zapisz_kotwice()
-      pk.window_wyjdz()
-      -- float wspomniany przy wejsciu w okno wraca (swieze 60 s)
-      if pk.float_suspended then
-        pk.float_on = true
-        pk.float_arm()
-        if pk.label and pk.label.raise then pk.label:raise() end
-      end
-      pk.float_suspended = nil
+    if pk.cfg.window ~= true then
+      pk.say("Pasek juz jest w glownym oknie.")
+      return
     end
+    pk.cfg.window = false
+    pk.zapisz_kotwice()
+    pk.window_wyjdz()
     pk.say("Pasek wrocil do glownego okna.")
   else
     pk.say("Uzycie: /pasek window [on|off]")
@@ -1033,25 +1086,29 @@ function pk.komenda_pomoc()
     "Pasek kalendarza  (v" .. PLUGIN_VERSION .. " | " .. PLUGIN_BUILD .. ")",
     "",
     "Komendy:",
-    "  /pasek                        - synchronizacja zegara (wysyla czas)",
-    "  /pasek on | off               - pokazuje / chowa pasek (ustawienia zostaja)",
-    "  /pasek float [on|off]         - przenoszenie mysza (auto-blokada po 60 s bez ruchu)",
-    "  /pasek window [on|off]        - pasek w osobnym plywajacym oknie",
+    "  /pasek                        - synchronizacja zegara (wysyla czas; to samo robi klikniecie paska)",
+    "  /pasek on | off               - pokazuje / chowa pasek (ustawienia zostaja, nie sa kasowane)",
+    "  /pasek float                  - przenoszenie mysza na 60 s; w trybie okna: powrot do glownego okna",
+    "  /pasek float on | off         - wlacza (auto-blokada po 60 s bez ruchu) / wylacza przenoszenie mysza",
+    "  /pasek window                 - przelacznik: osobne okno &lt;-&gt; glowne okno jako pasek",
+    "  /pasek window on | off        - pasek w osobnym oknie / powrot do glownego okna jako pasek",
     "  /pasek pozycja X Y            - przesuniecie paska (pigulka CIEMNO podaza za paskiem)",
-    "  /pasek wartosci               - aktualne wartosci: pozycja i kolory (z fabrycznymi)",
-    "  /pasek tlo R G B [A]          - tlo paska; bez argumentow: paleta kolorow",
-    "  /pasek tekst R G B            - kolor tekstu paska; bez argumentow: paleta",
-    "  /pasek ciemno R G B [A]       - tlo pigulki CIEMNO; bez argumentow: paleta",
-    "  /pasek domyslne               - powrot do ustawien fabrycznych",
-    "  /pasek ustaw imperium 8 273   - reczne ustawienie zegara (domena, godzina 0-23, dzien roku)",
-    "  /pasek reset                  - czysci zapisane kotwice czasu",
+    "  /pasek wartosci               - aktualne wartosci paska (domyslne w nawiasie)",
+    "  /pasek tlo R G B [A]          - tlo paska; bez argumentow: paleta kolorow i przezroczystosci do wyboru",
+    "  /pasek tekst R G B            - kolor tekstu paska; bez argumentow: paleta kolorow do wyboru",
+    "  /pasek ciemno R G B [A]       - tlo pigulki CIEMNO; bez argumentow: paleta kolorow i przezroczystosci do wyboru",
+    "  /pasek domyslne               - powrot do ustawien domyslnych",
+    "  /pasek ustaw imperium 8 273   - reczne ustawienie zegara (domena, godzina 0-23, dzien roku 1-400)",
+    "  /pasek ustaw ishtar 18 90     - to samo dla domeny Ishtar (dzien roku 1-360)",
+    "  /pasek reset                  - czysci zapisane kotwice czasu dla obu domen",
+    "  /pasek reset [domena]         - czysci kotwice czasu tylko podanej domeny (ishtar | imperium)",
     "  /pasek aktualizuj             - sprawdz i zainstaluj aktualizacje",
     "  Kolory: R G B [A], kazda wartosc to liczba 0-255.",
     "  R G B = kanaly czerwony, zielony, niebieski. A = przezroczystosc tla:",
     "  0 = niewidzialne, 255 = calkowicie kryjace (im mniej, tym bardziej przezroczyste).",
     "  Bez A: tlo paska dostaje fabryczne 210, pigulka CIEMNO 230.",
     "  Samo /pasek tlo, /pasek ciemno lub /pasek tekst otwiera palete kolorow.",
-    "  Paleta: 24 kolory; tlo i CIEMNO maja suwak przezroczystosci A, tekst nie.",
+    "  Paleta: 24 kolory; tlo i ciemno maja suwak przezroczystosci A, tekst nie.",
     "  Przyklady:",
     "    /pasek tlo 0 0 0 255     - czarne tlo, calkowicie kryjace",
     "    /pasek tlo 0 0 0 120     - czarne tlo, polprzezroczyste",
@@ -1461,17 +1518,17 @@ end</script>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_reset</name>
-				<script>local ok = os.remove(pasek_kalendarz.sciezka_kotwicy())
-if ok then
-  pasek_kalendarz.kotwice = { ishtar = nil, imperium = nil }
-  pasek_kalendarz.render()
-  pasek_kalendarz.say("Kotwice czasu wyczyszczone. Wpisz czas, zeby zsynchronizowac.")
-else
-  pasek_kalendarz.say("Nie udalo sie usunac pliku kotwic - sprawdz uprawnienia katalogu profilu")
-end</script>
+				<script>pasek_kalendarz.komenda_reset()</script>
 				<command></command>
 				<packageName></packageName>
 				<regex>^/pasek reset$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_reset_domena</name>
+				<script>pasek_kalendarz.komenda_reset(matches[2])</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek reset (.+)$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_ustaw</name>

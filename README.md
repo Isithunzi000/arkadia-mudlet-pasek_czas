@@ -37,21 +37,25 @@ Plik [`pasek_kalendarz_arkadia.xml`](pasek_kalendarz_arkadia.xml) w korzeniu rep
 
 **Czas:**
 
-- `/pasek` — wymusza synchronizację (wysyła `czas`)
-- `/pasek ustaw imperium 8 273` — ręczne ustawienie: domena, godzina 0–23, opcjonalnie dzień roku
-- `/pasek reset` — czyści zapisane kotwice czasu
+- `/pasek` — wymusza synchronizację (wysyła `czas`; to samo daje kliknięcie paska)
+- `/pasek ustaw imperium 8 273` — ręczne ustawienie zegara: domena, godzina 0–23, dzień roku 1–400
+- `/pasek ustaw ishtar 18 90` — to samo dla domeny Ishtar (dzień roku 1–360)
+- `/pasek reset` — czyści zapisane kotwice czasu dla obu domen (zapisany wygląd zostaje; reset wyglądu: `/pasek domyslne`)
+- `/pasek reset [domena]` — czyści kotwice czasu tylko podanej domeny (`ishtar` | `imperium`), druga bez zmian
 
 **Wygląd i pozycja** (wszystko zapisuje się na dysku i działa po restarcie):
 
-- `/pasek on` / `/pasek off` — pokazuje / chowa pasek (ustawienia zostają)
-- `/pasek float [on|off]` — przenoszenie paska myszą w obrębie okna Mudleta (auto-blokada po 60 s bez ruchu)
-- `/pasek window [on|off]` — pasek w osobnym pływającym oknie (dokowanie wyłączone; pozycję okna zapamiętuje Mudlet; pigułka CIEMNO powiększa okno automatycznie, ale przy upartym zadokowaniu pigułka CIEMNO może być ucięta)
+- `/pasek on` / `/pasek off` — pokazuje / chowa pasek (ustawienia zostają, nie są kasowane)
+- `/pasek float` — przenoszenie paska myszą na 60 s; w trybie okna: powrót do głównego okna
+- `/pasek float on` / `/pasek float off` — włącza (auto-blokada po 60 s bez ruchu) / wyłącza przenoszenie myszą
+- `/pasek window` — przełącznik: osobne okno ↔ główne okno jako pasek
+- `/pasek window on` / `/pasek window off` — pasek w osobnym oknie / powrót do głównego okna jako pasek (dokowanie wyłączone; pozycję okna zapamiętuje Mudlet; pigułka CIEMNO powiększa okno automatycznie, ale przy upartym zadokowaniu pigułka CIEMNO może być ucięta)
 - `/pasek pozycja X Y` — przesuwa pasek (pigułka CIEMNO sama podąża za paskiem)
-- `/pasek wartosci` — pokazuje aktualne wartości: pozycję i kolory (w nawiasach fabryczne)
-- `/pasek tlo R G B [A]` — kolor tła paska (opcjonalnie przezroczystość 0–255); bez argumentów otwiera paletę kolorów
-- `/pasek tekst R G B` — kolor tekstu paska; bez argumentów otwiera paletę
-- `/pasek ciemno R G B [A]` — kolor pigułki CIEMNO; bez argumentów otwiera paletę
-- `/pasek domyslne` — powrót do ustawień fabrycznych (pozycja + kolory)
+- `/pasek wartosci` — aktualne wartości paska (w nawiasach domyślne)
+- `/pasek tlo R G B [A]` — kolor tła paska; bez argumentów otwiera paletę kolorów i przezroczystości
+- `/pasek tekst R G B` — kolor tekstu paska; bez argumentów otwiera paletę kolorów (bez przezroczystości)
+- `/pasek ciemno R G B [A]` — kolor pigułki CIEMNO; bez argumentów otwiera paletę kolorów i przezroczystości
+- `/pasek domyslne` — powrót do ustawień domyślnych (pozycja + kolory)
 - `/pasek pomoc` — ściągawka komend w oknie gry
 
 **Aktualizacje:**
