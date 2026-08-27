@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.11"
+local PLUGIN_VERSION = "1.6.12"
 local PLUGIN_BUILD   = "27-08-2026"
 
 -- ---------- Wyjscie (kolory cecho, 1:1 z ishtar/imperium) ----------
@@ -720,6 +720,12 @@ end
 pk.window_name = "pasek_kalendarz_okno"
 pk.win_container = nil    -- Geyser.UserWindow, gdy aktywny tryb okna
 pk.win_last_h = nil       -- ostatnia zaaplikowana wysokosc okna (resize tylko przy zmianie)
+-- 1.6.12: resizeWindow ustawia rozmiar ZEWNETRZNY okna (z paskiem tytulu
+-- i obwodkami) - bez zapasu obszar roboczy ucinal druga linie tekstu.
+-- Zapas na dekoracje: zmierzone 17 px (Linux), Windows/macOS wiecej;
+-- tekst konczy sie ~y52, wiec bezpieczny dla dekoracji do 30 px.
+pk.WINDOW_PAD_X = 4    -- obwodki boczne (zmierzone 2 px + margines)
+pk.WINDOW_PAD_Y = 26   -- pasek tytulu + obwodki
 -- 1.6.11: mechanizm float_suspended usuniety - float_on i cfg.window sa
 -- wzajemnie wykluczajacymi sie stanami (inwarjant pilnowany w komendach)
 
@@ -734,19 +740,27 @@ function pk.window_dostepne()
      and not (type(mudletOlderThan) == "function" and mudletOlderThan(4, 8))
 end
 
--- wysokosc okna: sam pasek, a przy widocznym CIEMNO + odstep i pigulka
+-- wysokosc tresci okna: sam pasek, a przy widocznym CIEMNO + odstep i pigulka
 function pk.window_wysokosc()
   local h = pk.cfg.height
   if pk.stan.ciemno then h = h + pk.cfg.ciemno_odstep + pk.cfg.ciemno_height end
   return h
 end
 
+-- rozmiar zewnetrzny okna (1.6.12): tresc + zapas na dekoracje systemowe
+function pk.window_rozmiar()
+  return pk.cfg.width + pk.WINDOW_PAD_X, pk.window_wysokosc() + pk.WINDOW_PAD_Y
+end
+
 -- Dynamiczny resize okna przy zmianie stanu CIEMNO (bez spamu co tick).
+-- Label paska jest NADWYMIAROWY (= rozmiar zewnetrzny okna): klient utnie
+-- go do obszaru roboczego, wiec tlo zawsze wypelnia okno do krawedzi.
 function pk.window_resize()
   if not (pk.cfg.window == true and pk.win_container) then return end
-  local h = pk.window_wysokosc()
+  local w, h = pk.window_rozmiar()
   if pk.win_last_h ~= h then
-    resizeWindow(pk.window_name, pk.cfg.width, h)
+    resizeWindow(pk.window_name, w, h)
+    if pk.label then pk.label:resize(w, h) end
     pk.win_last_h = h
   end
 end
@@ -755,23 +769,25 @@ end
 -- restoreLayout - rozmiar zawsze wymuszany jawnie), etykiety przepinane
 -- przez setWindow bez odtwarzania.
 function pk.window_wejdz()
+  local w, h = pk.window_rozmiar()
   if not pk.win_container then
     pk.win_container = Geyser.UserWindow:new({
       name = pk.window_name,
       x = 0, y = 0,
-      width = pk.cfg.width, height = pk.window_wysokosc(),
+      width = w, height = h,
       autoDock = false,
       restoreLayout = true,
       titleText = "Pasek kalendarza - Arkadia",
     })
   end
   -- domyslny rozmiar wymuszany przy kazdym wejsciu w tryb okna
-  -- (resizeWindow od-dokowuje siłowo okno, gdyby bylo zadokowane)
-  local h = pk.window_wysokosc()
-  resizeWindow(pk.window_name, pk.cfg.width, h)
+  -- (resizeWindow od-dokowuje siłowo okno, gdyby bylo zadokowane);
+  -- label nadwymiarowy = wypelnienie calego obszaru roboczego (1.6.12)
+  resizeWindow(pk.window_name, w, h)
   pk.win_last_h = h
   -- przepiecie etykiet do okna (pozycje wzgledem okna)
   setWindow(pk.window_name, "pasek_kalendarz_label", 0, 0, true)
+  pk.label:resize(w, h)
   setWindow(pk.window_name, "pasek_kalendarz_ciemno",
             math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
             pk.cfg.height + pk.cfg.ciemno_odstep, pk.stan.ciemno == true)
@@ -781,6 +797,8 @@ end
 -- Powrot inline: etykiety z powrotem do glownego okna na pozycje z cfg,
 -- osobne okno zamkniete (kontener zostaje do ponownego uzycia).
 function pk.window_wyjdz()
+  -- label wraca do fabrycznych wymiarow inline (w oknie byl nadwymiarowy)
+  if pk.label then pk.label:resize(pk.cfg.width, pk.cfg.height) end
   setWindow("main", "pasek_kalendarz_label", pk.cfg.x, pk.cfg.y, pk.cfg.wlaczony ~= false)
   setWindow("main", "pasek_kalendarz_ciemno",
             pk.cfg.x + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
@@ -978,6 +996,18 @@ function pk.paleta_buduj()
   pk.paleta_podglad = mk("podglad", l.podglad)
 end
 
+-- 1.6.12: kontrastowy kolor tekstu podgladu (bialy tekst na jasnym
+-- wybranym kolorze byl niewidoczny). Blend nad tlem panelu (20,20,26)
+-- przy alfa &lt; 255, potem luminancja Rec.601; prog 140. Arytmetyka
+-- calkowita, deterministyczna.
+function pk.paleta_kontrast(r, g, b, a)
+  local function eff(c, bg) return math.floor((c * a + bg * (255 - a) + 127) / 255) end
+  local er, eg, eb = eff(r, 20), eff(g, 20), eff(b, 26)
+  local lum = (299 * er + 587 * eg + 114 * eb) / 1000
+  if lum &gt; 140 then return 20, 20, 26 end
+  return 255, 255, 255
+end
+
 -- odswieza tytul, gradient suwaka i podglad zgodnie z celem i alfa
 function pk.paleta_odswiez()
   local k = paleta_kolor_celu()
@@ -1000,6 +1030,10 @@ function pk.paleta_odswiez()
     pk.paleta_podglad:setColor(r, g, b, 255)
     pk.paleta_podglad:echo(string.format("&lt;center&gt;%d %d %d", r, g, b))
   end
+  -- 1.6.12: kontrastowy kolor kodow liczbowych (wzorzec jak kolor_tekstu
+  -- glownego labela: setFgColor przed kolejnym echem)
+  setFgColor(pk.paleta_podglad.name, pk.paleta_kontrast(r, g, b,
+    paleta_ma_alfa() and pk.paleta.alfa or 255))
 end
 
 -- pokazuje/ukrywa wszystkie widgety panelu na pozycji liczonej przy otwarciu
