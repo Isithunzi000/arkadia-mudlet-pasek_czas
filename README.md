@@ -45,12 +45,12 @@ Plik [`pasek_kalendarz_arkadia.xml`](pasek_kalendarz_arkadia.xml) w korzeniu rep
 
 - `/pasek on` / `/pasek off` — pokazuje / chowa pasek (ustawienia zostają)
 - `/pasek float [on|off]` — przenoszenie paska myszą w obrębie okna Mudleta (auto-blokada po 60 s bez ruchu)
-- `/pasek window [on|off]` — pasek w osobnym pływającym oknie (pozycję okna zapamiętuje Mudlet; pigułka CIEMNO powiększa okno automatycznie)
+- `/pasek window [on|off]` — pasek w osobnym pływającym oknie (dokowanie wyłączone; pozycję okna zapamiętuje Mudlet; pigułka CIEMNO powiększa okno automatycznie, ale przy upartym zadokowaniu pigułka CIEMNO może być ucięta)
 - `/pasek pozycja X Y` — przesuwa pasek (pigułka CIEMNO sama podąża za paskiem)
 - `/pasek wartosci` — pokazuje aktualne wartości: pozycję i kolory (w nawiasach fabryczne)
-- `/pasek tlo R G B [A]` — kolor tła paska (opcjonalnie przezroczystość 0–255)
+- `/pasek tlo R G B [A]` — kolor tła paska (opcjonalnie przezroczystość 0–255); bez argumentów otwiera paletę kolorów
 - `/pasek tekst R G B` — kolor tekstu paska
-- `/pasek ciemno R G B [A]` — kolor pigułki CIEMNO
+- `/pasek ciemno R G B [A]` — kolor pigułki CIEMNO; bez argumentów otwiera paletę
 - `/pasek domyslne` — powrót do ustawień fabrycznych (pozycja + kolory)
 - `/pasek pomoc` — ściągawka komend w oknie gry
 
@@ -58,7 +58,7 @@ Plik [`pasek_kalendarz_arkadia.xml`](pasek_kalendarz_arkadia.xml) w korzeniu rep
 
 - `/pasek aktualizuj` — sprawdza i instaluje aktualizację z GitHub Releases
 
-Kolory podaje się jako `R G B [A]` — każda wartość to liczba 0–255. `R G B` to kanały czerwony, zielony i niebieski; opcjonalne `A` to przezroczystość tła: `0` = niewidzialne, `255` = całkowicie kryjące (im mniej, tym bardziej przezroczyste). Bez `A` tło paska dostaje fabryczne `210`, a pigułka CIEMNO `230`. Przykłady: `/pasek tlo 0 0 0 255` (czarne tło, kryjące), `/pasek tlo 0 0 0 120` (czarne tło, półprzezroczyste), `/pasek tlo 0 0 0 0` (tło niewidzialne, zostaje sam tekst), `/pasek tekst 255 255 0` (żółty tekst). Kliknięcie paska też wysyła `czas`.
+Kolory podaje się jako `R G B [A]` — każda wartość to liczba 0–255. `R G B` to kanały czerwony, zielony i niebieski; opcjonalne `A` to przezroczystość tła: `0` = niewidzialne, `255` = całkowicie kryjące (im mniej, tym bardziej przezroczyste). Bez `A` tło paska dostaje fabryczne `210`, a pigułka CIEMNO `230`. Gołe `/pasek tlo` lub `/pasek ciemno` otwiera paletę: 24 kolory + suwak A. Przykłady: `/pasek tlo 0 0 0 255` (czarne tło, kryjące), `/pasek tlo 0 0 0 120` (czarne tło, półprzezroczyste), `/pasek tlo 0 0 0 0` (tło niewidzialne, zostaje sam tekst), `/pasek tekst 255 255 0` (żółty tekst). Kliknięcie paska też wysyła `czas`.
 
 ---
 

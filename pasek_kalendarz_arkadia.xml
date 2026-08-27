@@ -21,7 +21,7 @@
 
 pasek_kalendarz = pasek_kalendarz or {}
 local pk = pasek_kalendarz
-local PLUGIN_VERSION = "1.6.8"
+local PLUGIN_VERSION = "1.6.9"
 local PLUGIN_BUILD   = "27-08-2026"
 
 -- ---------- Wyjscie (kolory cecho, 1:1 z ishtar/imperium) ----------
@@ -511,8 +511,9 @@ local function tohex(k) return string.format("#%02x%02x%02x", k[1], k[2], k[3]) 
 -- Aplikuje cfg na istniejace labele (pozycja + kolory + odswiezenie)
 function pk.zastosuj_wyglad()
   -- baza pozycji: inline z cfg; w trybie okna etykiety wzgledem okna (0,0)
+  -- (kontener okna istnieje tez po wyjsciu z trybu - liczy sie flaga)
   local bx, by = pk.cfg.x, pk.cfg.y
-  if pk.win_container then bx, by = 0, 0 end
+  if pk.cfg.window == true and pk.win_container then bx, by = 0, 0 end
   if pk.label then
     pk.label:setColor(unpack(pk.cfg.kolor_tla))
     pk.label.fgColor = tohex(pk.cfg.kolor_tekstu)
@@ -526,8 +527,9 @@ function pk.zastosuj_wyglad()
     pk.ciemno_label:move(bx + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
                          by + pk.cfg.height + pk.cfg.ciemno_odstep)
   end
-  -- osobne okno podaza za widocznoscia paska (/pasek on|off)
-  if pk.win_container then
+  -- osobne okno podaza za widocznoscia paska (/pasek on|off), tylko
+  -- gdy tryb okna jest aktywny (po window off okno zostaje zamkniete)
+  if pk.cfg.window == true and pk.win_container then
     if pk.cfg.wlaczony == false then pk.win_container:hide() else pk.win_container:show() end
   end
   pk.render()
@@ -669,10 +671,14 @@ pk.win_container = nil    -- Geyser.UserWindow, gdy aktywny tryb okna
 pk.win_last_h = nil       -- ostatnia zaaplikowana wysokosc okna (resize tylko przy zmianie)
 pk.float_suspended = nil  -- float uspiony na czas trybu okna
 
--- userwindow wymaga wsparcia klienta (mudlet-web go nie ma)
+-- userwindow wymaga wsparcia klienta (mudlet-web go nie ma); setWindow
+-- (przepiecie etykiet) jest dostepne od Mudlet 4.8
 function pk.window_dostepne()
   return type(openUserWindow) == "function"
+     and type(resizeUserWindow) == "function"
+     and type(setWindow) == "function"
      and type(Geyser) == "table" and type(Geyser.UserWindow) == "table"
+     and not (type(mudletOlderThan) == "function" and mudletOlderThan(4, 8))
 end
 
 -- wysokosc okna: sam pasek, a przy widocznym CIEMNO + odstep i pigulka
@@ -692,33 +698,57 @@ function pk.window_resize()
   end
 end
 
+-- Wejscie w tryb okna: userwindow tworzone raz (autoDock wylaczone,
+-- restoreLayout - rozmiar zawsze wymuszany jawnie), etykiety przepinane
+-- przez setWindow bez odtwarzania.
+function pk.window_wejdz()
+  if not pk.win_container then
+    pk.win_container = Geyser.UserWindow:new({
+      name = pk.window_name,
+      x = 0, y = 0,
+      width = pk.cfg.width, height = pk.window_wysokosc(),
+      autoDock = false,
+      restoreLayout = true,
+      titleText = "Pasek kalendarza - Arkadia",
+    })
+  end
+  -- domyslny rozmiar wymuszany przy kazdym wejsciu w tryb okna
+  local h = pk.window_wysokosc()
+  resizeUserWindow(pk.window_name, pk.cfg.width, h)
+  pk.win_last_h = h
+  -- przepiecie etykiet do okna (pozycje wzgledem okna)
+  setWindow(pk.window_name, "pasek_kalendarz_label", 0, 0, true)
+  setWindow(pk.window_name, "pasek_kalendarz_ciemno",
+            math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
+            pk.cfg.height + pk.cfg.ciemno_odstep, pk.stan.ciemno == true)
+  pk.zastosuj_wyglad()
+end
+
+-- Powrot inline: etykiety z powrotem do glownego okna na pozycje z cfg,
+-- osobne okno zamkniete (kontener zostaje do ponownego uzycia).
+function pk.window_wyjdz()
+  setWindow("main", "pasek_kalendarz_label", pk.cfg.x, pk.cfg.y, pk.cfg.wlaczony ~= false)
+  setWindow("main", "pasek_kalendarz_ciemno",
+            pk.cfg.x + math.floor((pk.cfg.width - pk.cfg.ciemno_width) / 2),
+            pk.cfg.y + pk.cfg.height + pk.cfg.ciemno_odstep,
+            pk.stan.ciemno == true and pk.cfg.wlaczony ~= false)
+  if type(closeUserWindow) == "function" then closeUserWindow(pk.window_name) end
+  pk.zastosuj_wyglad()
+end
+
 -- Buduje labele paska: inline w glownym oknie albo w osobnym userwindow.
 function pk.buduj_labele()
   if pk.label then pk.label:hide() end
   if pk.ciemno_label then pk.ciemno_label:hide() end
-  pk.win_container = nil
-  pk.win_last_h = nil
-  if pk.cfg.window == true and pk.window_dostepne() then
-    pk.win_last_h = pk.window_wysokosc()
-    pk.win_container = Geyser.UserWindow:new({
-      name = pk.window_name,
-      x = 0, y = 0,
-      width = pk.cfg.width, height = pk.win_last_h,
-    })
-    if type(setUserWindowTitle) == "function" then
-      setUserWindowTitle(pk.window_name, "Pasek kalendarza - Arkadia")
-    end
-  end
-  -- w trybie okna etykiety pozycjonowane wzgledem okna (0,0)
+  -- etykiety zawsze inline w glownym oknie; tryb okna przepina je przez
+  -- setWindow (globalny rejestr nazw labeli odrzuca odtworzenie w userwindow)
   local bx, by = pk.cfg.x, pk.cfg.y
-  if pk.win_container then bx, by = 0, 0 end
   pk.label = Geyser.Label:new({
     name = "pasek_kalendarz_label",
     x = bx, y = by,
     width = pk.cfg.width, height = pk.cfg.height,
     fgColor = "white",
     message = "",
-    container = pk.win_container,
   })
   pk.label:setColor(unpack(pk.cfg.kolor_tla))
   pk.label:setFontSize(pk.cfg.fontSize)
@@ -734,7 +764,6 @@ function pk.buduj_labele()
     width = pk.cfg.ciemno_width, height = pk.cfg.ciemno_height,
     fgColor = "white",
     message = "&lt;center&gt;◆ CIEMNO",
-    container = pk.win_container,
   })
   pk.ciemno_label:setColor(unpack(pk.cfg.kolor_ciemno))
   pk.ciemno_label:setFontSize(math.max(8, pk.cfg.fontSize - 2))
@@ -760,15 +789,14 @@ function pk.komenda_window(arg)
       end
       pk.cfg.window = true
       pk.zapisz_kotwice()
-      pk.buduj_labele()
+      pk.window_wejdz()
     end
     pk.say("Pasek przeniesiony do osobnego okna (powrot: /pasek window off).")
   elseif arg == "off" then
     if pk.cfg.window == true then
       pk.cfg.window = false
       pk.zapisz_kotwice()
-      pk.buduj_labele()
-      if type(closeUserWindow) == "function" then closeUserWindow(pk.window_name) end
+      pk.window_wyjdz()
       -- float wspomniany przy wejsciu w okno wraca (swieze 60 s)
       if pk.float_suspended then
         pk.float_on = true
@@ -821,6 +849,155 @@ function pk.komenda_domyslne()
   pk.say("Przywrocono ustawienia fabryczne.")
 end
 
+-- ---------- PALETA KOLOROW: gole /pasek tlo i /pasek ciemno ----------
+-- Panel: 24 probki (8x3), suwak alfa, podglad, X. Widgety budowane leniwie
+-- RAZ (rejestr nazw labeli odrzuca duplikaty), potem tylko show/hide.
+-- Panel zawsze w glownym oknie; aplikacja cicha (feedback wizualny).
+pk.PALETA_KOLORY = {
+  {0x00,0x00,0x00}, {0x1a,0x1a,0x1a}, {0x33,0x33,0x33}, {0x66,0x66,0x66},
+  {0x99,0x99,0x99}, {0xcc,0xcc,0xcc}, {0xe6,0xe6,0xe6}, {0xff,0xff,0xff},
+  {0xcc,0x00,0x00}, {0xe6,0x73,0x00}, {0xe6,0xb8,0x00}, {0x2e,0x8b,0x22},
+  {0x00,0x80,0x6b}, {0x00,0x59,0xb3}, {0x40,0x30,0xc0}, {0x8b,0x1a,0x8f},
+  {0x4d,0x1a,0x1a}, {0x4d,0x33,0x19}, {0x4d,0x4d,0x1a}, {0x1a,0x33,0x19},
+  {0x1a,0x33,0x33}, {0x19,0x14,0x1e}, {0x26,0x19,0x33}, {0x33,0x1a,0x26},
+}
+pk.PALETA_SZER = 292   -- 8*32 + 7*4 + 2*4
+pk.PALETA_WYS = 196
+pk.PALETA_SUWAK_W = 284
+pk.paleta = { cel = nil, otwarta = false, alfa = 255 }
+
+-- wzgledne pozycje widgetow panelu (dx, dy, w, h) wzgledem tla panelu
+local function paleta_layout()
+  local l = {
+    tytul  = { 4, 4, 240, 20 },
+    x      = { pk.PALETA_SZER - 24, 4, 20, 20 },
+    suwak  = { 4, 136, pk.PALETA_SUWAK_W, 20 },
+    podglad = { 4, 160, pk.PALETA_SUWAK_W, 32 },
+  }
+  for i = 1, 24 do
+    local kol = (i - 1) % 8
+    local wiersz = math.floor((i - 1) / 8)
+    l["probka_" .. i] = { 4 + kol * 36, 28 + wiersz * 36, 32, 32 }
+  end
+  return l
+end
+
+local function paleta_kolor_celu()
+  return pk.paleta.cel == "ciemno" and pk.cfg.kolor_ciemno or pk.cfg.kolor_tla
+end
+
+function pk.paleta_buduj()
+  if pk.paleta_bg then return end
+  local function mk(nazwa, r)
+    return Geyser.Label:new({
+      name = "pasek_kalendarz_paleta_" .. nazwa,
+      x = r[1], y = r[2], width = r[3], height = r[4],
+      fgColor = "white", message = "",
+    })
+  end
+  local l = paleta_layout()
+  pk.paleta_bg = mk("bg", { 0, 0, pk.PALETA_SZER, pk.PALETA_WYS })
+  pk.paleta_bg:setColor(20, 20, 26, 255)
+  pk.paleta_tytul = mk("tytul", l.tytul)
+  pk.paleta_x = mk("x", l.x)
+  pk.paleta_x:setColor(60, 60, 70, 255)
+  pk.paleta_x:echo("&lt;center&gt;X")
+  pk.paleta_x:setClickCallback(function() pk.paleta_zamknij() end)
+  pk.paleta_probki = {}
+  for i = 1, 24 do
+    local p = mk("probka_" .. i, l["probka_" .. i])
+    local c = pk.PALETA_KOLORY[i]
+    p:setColor(c[1], c[2], c[3], 255)
+    p:setClickCallback(function() pk.paleta_klik_probka(i) end)
+    pk.paleta_probki[i] = p
+  end
+  pk.paleta_suwak = mk("suwak", l.suwak)
+  pk.paleta_suwak:setClickCallback(function(ev) pk.paleta_klik_suwak(ev) end)
+  pk.paleta_podglad = mk("podglad", l.podglad)
+end
+
+-- odswieza tytul, gradient suwaka i podglad zgodnie z celem i alfa
+function pk.paleta_odswiez()
+  local k = paleta_kolor_celu()
+  local r, g, b = k[1], k[2], k[3]
+  pk.paleta_tytul:echo(pk.paleta.cel == "ciemno"
+    and "Kolor: pigulka CIEMNO" or "Kolor: tlo paska")
+  if pk.paleta_suwak.setStyleSheet then
+    pk.paleta_suwak:setStyleSheet(string.format(
+      "background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(%d,%d,%d,0), stop:1 rgba(%d,%d,%d,255));",
+      r, g, b, r, g, b))
+  end
+  pk.paleta_podglad:setColor(r, g, b, pk.paleta.alfa)
+  pk.paleta_podglad:echo(string.format("&lt;center&gt;%d %d %d %d", r, g, b, pk.paleta.alfa))
+end
+
+-- pokazuje/ukrywa wszystkie widgety panelu na pozycji liczonej przy otwarciu
+function pk.paleta_pokaz(pokaz)
+  local py = pk.cfg.y + pk.cfg.height + 8
+  if pk.stan.ciemno then py = py + pk.cfg.ciemno_odstep + pk.cfg.ciemno_height end
+  local l = paleta_layout()
+  local function ustaw(w, r)
+    w:move(pk.cfg.x + r[1], py + r[2])
+    if pokaz then w:show() else w:hide() end
+  end
+  ustaw(pk.paleta_bg, { 0, 0, pk.PALETA_SZER, pk.PALETA_WYS })
+  ustaw(pk.paleta_tytul, l.tytul)
+  ustaw(pk.paleta_x, l.x)
+  for i = 1, 24 do ustaw(pk.paleta_probki[i], l["probka_" .. i]) end
+  ustaw(pk.paleta_suwak, l.suwak)
+  ustaw(pk.paleta_podglad, l.podglad)
+end
+
+function pk.paleta_otworz(cel)
+  pk.paleta_buduj()
+  pk.paleta.cel = cel
+  pk.paleta.otwarta = true
+  pk.paleta.alfa = paleta_kolor_celu()[4] or 255
+  pk.paleta_odswiez()
+  pk.paleta_pokaz(true)
+end
+
+function pk.paleta_zamknij()
+  if not pk.paleta.otwarta then return end
+  pk.paleta.otwarta = false
+  pk.paleta.cel = nil
+  pk.paleta_pokaz(false)
+end
+
+-- cicha aplikacja: cfg + persystencja + przemalowanie paska, bez pk.say
+function pk.paleta_zastosuj()
+  pk.zapisz_kotwice()
+  pk.zastosuj_wyglad()
+end
+
+function pk.paleta_klik_probka(i)
+  local c = pk.PALETA_KOLORY[i]
+  if not c then return end
+  local k = { c[1], c[2], c[3], pk.paleta.alfa }
+  if pk.paleta.cel == "ciemno" then pk.cfg.kolor_ciemno = k else pk.cfg.kolor_tla = k end
+  pk.paleta_odswiez()
+  pk.paleta_zastosuj()
+end
+
+function pk.paleta_klik_suwak(ev)
+  local x = tonumber(ev and ev.x) or 0
+  local a = math.floor(x / pk.PALETA_SUWAK_W * 255 + 0.5)
+  if a &lt; 0 then a = 0 elseif a &gt; 255 then a = 255 end
+  pk.paleta.alfa = a
+  paleta_kolor_celu()[4] = a
+  pk.paleta_odswiez()
+  pk.paleta_zastosuj()
+end
+
+-- gole /pasek tlo i /pasek ciemno: toggle panelu / przelaczenie celu
+function pk.komenda_paleta(cel)
+  if pk.paleta.otwarta and pk.paleta.cel == cel then
+    pk.paleta_zamknij()
+    return
+  end
+  pk.paleta_otworz(cel)
+end
+
 function pk.komenda_pomoc()
   printTitledReport({
     "Pasek kalendarza  (v" .. PLUGIN_VERSION .. " | " .. PLUGIN_BUILD .. ")",
@@ -832,9 +1009,9 @@ function pk.komenda_pomoc()
     "  /pasek window [on|off]        - pasek w osobnym plywajacym oknie",
     "  /pasek pozycja X Y            - przesuniecie paska (pigulka CIEMNO podaza za paskiem)",
     "  /pasek wartosci               - aktualne wartosci: pozycja i kolory (z fabrycznymi)",
-    "  /pasek tlo R G B [A]          - tlo paska, np.: /pasek tlo 0 0 0 180",
+    "  /pasek tlo R G B [A]          - tlo paska; bez argumentow: paleta kolorow",
     "  /pasek tekst R G B            - kolor tekstu paska, np.: /pasek tekst 255 255 0",
-    "  /pasek ciemno R G B [A]       - tlo pigulki CIEMNO, np.: /pasek ciemno 60 20 20 230",
+    "  /pasek ciemno R G B [A]       - tlo pigulki CIEMNO; bez argumentow: paleta",
     "  /pasek domyslne               - powrot do ustawien fabrycznych",
     "  /pasek ustaw imperium 8 273   - reczne ustawienie zegara (domena, godzina 0-23, dzien roku)",
     "  /pasek reset                  - czysci zapisane kotwice czasu",
@@ -843,6 +1020,7 @@ function pk.komenda_pomoc()
     "  R G B = kanaly czerwony, zielony, niebieski. A = przezroczystosc tla:",
     "  0 = niewidzialne, 255 = calkowicie kryjace (im mniej, tym bardziej przezroczyste).",
     "  Bez A: tlo paska dostaje fabryczne 210, pigulka CIEMNO 230.",
+    "  Gole /pasek tlo lub /pasek ciemno otwiera palete: 24 kolory + suwak A.",
     "  Przyklady:",
     "    /pasek tlo 0 0 0 255     - czarne tlo, calkowicie kryjace",
     "    /pasek tlo 0 0 0 120     - czarne tlo, polprzezroczyste",
@@ -1161,8 +1339,10 @@ local pk = pasek_kalendarz
 -- najpierw zapisana konfiguracja (kotwice + wyglad z komend "/pasek ...")
 pk.wczytaj_kotwice()
 
--- budowa labeli: inline w glownym oknie albo w osobnym oknie (/pasek window)
-pk.buduj_labele()</script>
+-- budowa labeli: zawsze inline; przy persystowanej fladze window etykiety
+-- przepinane do osobnego okna przez setWindow (/pasek window)
+pk.buduj_labele()
+if pk.cfg.window == true and pk.window_dostepne() then pk.window_wejdz() end</script>
 				<eventHandlerList>
 				</eventHandlerList>
 			</Script>
@@ -1345,6 +1525,20 @@ end</script>
 				<command></command>
 				<packageName></packageName>
 				<regex>^/pasek ciemno (\d+) (\d+) (\d+)(?: (\d+))?$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_tlo_paleta</name>
+				<script>pasek_kalendarz.komenda_paleta("tlo")</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek tlo$</regex>
+			</Alias>
+			<Alias isActive="yes" isFolder="no">
+				<name>pasek_ciemno_paleta</name>
+				<script>pasek_kalendarz.komenda_paleta("ciemno")</script>
+				<command></command>
+				<packageName></packageName>
+				<regex>^/pasek ciemno$</regex>
 			</Alias>
 			<Alias isActive="yes" isFolder="no">
 				<name>pasek_domyslne</name>
